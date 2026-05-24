@@ -29,73 +29,94 @@ export function formatWhatsAppMessage({
   const divider = "------------------------------------------";
   const now = simulatedDateStr ? new Date(simulatedDateStr) : new Date();
   
-  let text = `⚽ *PALPITE COPA 2026* ⚽\n`;
-  text += `${divider}\n`;
-  text += `🏆 *Torneio:* Mundial FIFA 2026 (EUA, Canadá & México)\n`;
-  text += `👤 *Palpite de:* ${fullName.trim()}\n`;
-  text += `📅 *Fase:* ${round}\n`;
-  text += `${divider}\n\n`;
-
-  // Render 1.ª RODADA / Main Matches
-  const hasSecondRound = secondRoundMatches.length > 0;
-  if (hasSecondRound) {
-    text += `🔥 *1.ª RODADA:*\n\n`;
+  // Format Competition name dynamically
+  let compName = competition;
+  if (compName.includes("Mundial FIFA 2026")) {
+    compName = "COPA DO MUNDO 2026";
+  } else if (compName.toLowerCase().includes("brasileirão") || compName.toLowerCase().includes("brasileirao")) {
+    compName = "BRASILEIRÃO 2026";
   } else {
-    text += `🔥 *Meus Palpites:*\n\n`;
+    // default to BRASILEIRÃO 2026 as per requested preview unless it's Copa
+    compName = "BRASILEIRÃO 2026";
   }
 
+  // Clean Round name (omit bracketed part if present)
+  let cleanRound = round;
+  if (cleanRound.includes(" [")) {
+    cleanRound = cleanRound.split(" [")[0];
+  }
+
+  let text = `⚽ PALPITE ${compName.toUpperCase()} ⚽\n`;
+  text += `📅 Rodada: ${cleanRound}\n`;
+  text += `👤 Palpite de: ${fullName.toUpperCase()}\n`;
+  text += `${divider}\n`;
+
+  // Filter main round matches into closed and open ones
+  const closedMatches: { match: Match; index: number }[] = [];
+  const openMatches: { match: Match; index: number }[] = [];
+
   matches.forEach((match, idx) => {
-    const prediction = predictions.find(p => p.matchId === match.id);
-    
     const matchTimeBRT = new Date(`${match.date}T${match.time}:00-03:00`);
     const isStarted = now >= matchTimeBRT;
-
-    const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "";
-    const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "";
-
-    const flag1 = getTeamFlag(match.team1);
-    const flag2 = getTeamFlag(match.team2);
     
-    const gameNum = String(idx + 1).padStart(2, '0');
-    text += `🔹 *JOGO ${gameNum}* • _${match.date}_ _${match.time} BR_\n`;
     if (isStarted) {
-      text += `   ${flag1} ${match.team1} (🚫Palpite já processado🚫) ${match.team2} ${flag2}\n\n`;
+      closedMatches.push({ match, index: idx + 1 });
     } else {
-      const displayScore1 = score1 !== "" ? score1 : "0";
-      const displayScore2 = score2 !== "" ? score2 : "0";
-      text += `   ${flag1} ${match.team1} *${displayScore1}* x *${displayScore2}* ${match.team2} ${flag2}\n\n`;
+      openMatches.push({ match, index: idx + 1 });
     }
   });
 
-  // Render 2.ª RODADA if present
-  if (hasSecondRound) {
-    text += `⚡ *2.ª RODADA:*\n\n`;
-    secondRoundMatches.forEach((match, idx) => {
+  // Render Closed Matches
+  closedMatches.forEach(({ match, index }) => {
+    const [year, month, day] = match.date.split("-");
+    const formattedDate = `${day}/${month}`;
+    const gameNum = String(index).padStart(2, '0');
+    text += `🔹${gameNum} • ${match.team1} (🚫Fechado) ${match.team2} • ${formattedDate} ${match.time}h\n`;
+  });
+
+  // Divider between closed matches and open matches if both exist
+  if (closedMatches.length > 0 && openMatches.length > 0) {
+    text += `${divider}\n`;
+  }
+
+  // Render Open/Active Matches
+  openMatches.forEach(({ match, index }) => {
+    const [year, month, day] = match.date.split("-");
+    const formattedDate = `${day}/${month}`;
+    const gameNum = String(index).padStart(2, '0');
+    
+    // Get predictions
+    const prediction = predictions.find(p => p.matchId === match.id);
+    const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
+    const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
+    
+    text += `🔹${gameNum} • ${match.team1} ${score1} x ${score2} ${match.team2} • ${formattedDate} ${match.time}h\n`;
+  });
+
+  // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
+  if (secondRoundMatches.length > 0) {
+    text += `${divider}\n`;
+    text += `🔮 PRÉVIAS DA PRÓXIMA RODADA (OPCIONAIS)\n`;
+    text += `${divider}\n`;
+    
+    secondRoundMatches.forEach((match) => {
+      const [year, month, day] = match.date.split("-");
+      const formattedDate = `${day}/${month}`;
+      
       const prediction = predictions.find(p => p.matchId === match.id);
+      const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
+      const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
       
-      const matchTimeBRT = new Date(`${match.date}T${match.time}:00-03:00`);
-      const isStarted = now >= matchTimeBRT;
-
-      const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "";
-      const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "";
-
-      const flag1 = getTeamFlag(match.team1);
-      const flag2 = getTeamFlag(match.team2);
-      
-      const gameNum = String(idx + 1).padStart(2, '0');
-      text += `🔸 *JOGO ${gameNum}* • _${match.date}_ _${match.time} BR_\n`;
-      if (isStarted) {
-        text += `   ${flag1} ${match.team1} (🚫Palpite já processado🚫) ${match.team2} ${flag2}\n\n`;
-      } else {
-        const displayScore1 = score1 !== "" ? score1 : "0";
-        const displayScore2 = score2 !== "" ? score2 : "0";
-        text += `   ${flag1} ${match.team1} *${displayScore1}* x *${displayScore2}* ${match.team2} ${flag2}\n\n`;
-      }
+      text += `🔹 ${match.team1} ${score1} x ${score2} ${match.team2} • ${formattedDate} ${match.time}h\n`;
     });
   }
 
+  // Format the security ticket code
+  const displayTicketCode = ticketCode.replace("LOTO-", "BRASIL-");
+
   text += `${divider}\n`;
-  text += `🔐 *CÓDIGO DE SEGURANÇA:* \`${ticketCode}\``;
+  text += `🗝️ Código de Segurança: ${displayTicketCode}\n`;
+  text += `${divider}`;
 
   return text;
 }

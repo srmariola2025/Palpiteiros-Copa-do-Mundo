@@ -444,7 +444,7 @@ export default function App() {
     <div 
       className="min-h-screen relative overflow-x-hidden text-white font-sans flex flex-col justify-between py-6 px-4"
       style={{
-        backgroundImage: "linear-gradient(rgba(11, 41, 23, 0.84), rgba(7, 28, 15, 0.93)), url('https://aloalobahia.com/wp-content/uploads/2025/09/copa-do-mundo-2026.jpg')",
+        backgroundImage: "linear-gradient(rgba(11, 41, 23, 0.84), rgba(7, 28, 15, 0.93)), url('https://framerusercontent.com/images/L5snNMTtZXbSjzfzDqNfS22iL6o.jpg?scale-down-to=1024&width=2048&height=1146')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -584,12 +584,38 @@ export default function App() {
           {/* Slip Header details */}
           <div>
             <div className="text-center pb-4 border-b-2 border-dashed border-neutral-400">
-              <span className="text-[10px] tracking-widest text-[#143e24] font-bold">
-                ★★ COPA DO MUNDO DA FIFA 2026 ★★
-              </span>
-              <h2 className="text-2xl font-display font-extrabold text-neutral-900 mt-1 uppercase tracking-tighter">
-                Grupo e palpiteiros
-              </h2>
+              <div className="bg-[#032110] rounded-xl p-4 sm:p-5 mb-2 flex items-center justify-between select-none shadow-lg text-left">
+                <div className="flex flex-col justify-center pr-3">
+                  <span 
+                    style={{ fontFamily: "'Playfair Display', Georgia, serif" }} 
+                    className="text-[28px] sm:text-[36px] font-black tracking-tight leading-none text-[#faf6eb] uppercase"
+                  >
+                    PALPITEIROS
+                  </span>
+                  <span 
+                    style={{ fontFamily: "'Inter', sans-serif" }} 
+                    className="text-[9px] sm:text-[11px] font-black tracking-[0.16em] text-[#ebdcb9] uppercase leading-none mt-2"
+                  >
+                    COPA DO MUNDO 2026
+                  </span>
+                </div>
+                <div className="flex items-center justify-center pl-1 shrink-0">
+                  <img 
+                    src="https://upload.wikimedia.org/wikipedia/en/thumb/e/ec/FIFA_World_Cup_Trophy.svg/512px-FIFA_World_Cup_Trophy.svg.png" 
+                    alt="Trophy" 
+                    className="h-16 sm:h-20 w-auto object-contain brightness-110 contrast-105 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const fallback = e.currentTarget.parentElement?.querySelector('.trophy-fallback');
+                      if (fallback) fallback.classList.remove('hidden');
+                    }}
+                  />
+                  <div className="trophy-fallback hidden">
+                    <Trophy className="h-12 w-12 text-amber-500" />
+                  </div>
+                </div>
+              </div>
               
               <div className="bg-neutral-900/5 border border-dashed border-neutral-300 p-2.5 rounded mt-3 text-xs text-left text-neutral-700 space-y-1">
                 <div className="flex justify-between">
@@ -649,7 +675,7 @@ export default function App() {
                     <span className="text-[8px] bg-[#143e24] text-white px-1.5 py-0.5 rounded font-mono">FASE ATIVA</span>
                   </div>
 
-                  <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                  <div className="space-y-3">
                     {activeMatches.map((match) => {
                       const idx = competitionData.matches.findIndex(m => m.id === match.id);
                       const prediction = predictions[match.id] || { score1: "", score2: "" };
@@ -763,7 +789,7 @@ export default function App() {
                       <span className="text-[8px] bg-emerald-800 text-white px-1.5 py-0.5 rounded font-mono">LIBERADO</span>
                     </div>
 
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                    <div className="space-y-3">
                       {secondRoundMatchesToShow.map((match, sIdx) => {
                         const prediction = predictions[match.id] || { score1: "", score2: "" };
                         const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
