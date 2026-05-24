@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Courier Prime", "Courier New", Courier, monospace;
+}
+
+/* Custom background patterns and styles for the world cup lottery slip */
+.grass-pattern {
+  background-color: #0f301b;
+  background-image: 
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to right, rgba(0, 0, 0, 0.15) 50%, transparent 50%),
+    radial-gradient(circle at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.3) 100%);
+  background-size: 40px 40px, 40px 40px, 160px 100%, 100% 100%;
+}
+
+.soccer-line-circle {
+  border: 2px solid rgba(255, 255, 255, 0.07);
+  border-radius: 50%;
+  width: 250px;
+  height: 250px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.soccer-line-mid {
+  border-top: 2px solid rgba(255, 255, 255, 0.07);
+  width: 100%;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  pointer-events: none;
+}
+
+/* Jagged/Serrated receipt borders */
+.lotto-slip-container {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 5px 15px rgba(0, 0, 0, 0.4);
+}
+
+.serrated-edge-top {
+  height: 12px;
+  background: radial-gradient(circle, transparent 4px, #faf6eb 5px);
+  background-size: 14px 24px;
+  background-position: bottom;
+  width: 100%;
+  margin-bottom: -1px;
+}
+
+.serrated-edge-bottom {
+  height: 12px;
+  background: radial-gradient(circle, transparent 4px, #faf6eb 5px);
+  background-size: 14px 24px;
+  background-position: top;
+  width: 100%;
+  margin-top: -1px;
+}
+
+/* Ink stamp effects */
+.stamp {
+  font-family: var(--font-mono);
+  font-weight: bold;
+  text-transform: uppercase;
+  border: 4px double currentColor;
+  padding: 4px 12px;
+  transform: rotate(-8deg);
+  display: inline-block;
+}
+
+/* Hide arrow keys inside number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}

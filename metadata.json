@@ -1,0 +1,6 @@
+{
+  "name": "Bolão Copa 2026",
+  "description": "Bilhete de apostas clássico de loteria esportiva para palpites da Copa do Mundo 2026, com validação e compartilhamento via WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
