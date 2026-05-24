@@ -471,7 +471,7 @@ export default function App() {
           </h1>
         </div>
 
-        <p className="text-xs text-neutral-300 max-w-sm mx-auto italic">
+        <p className="text-xs text-neutral-300 max-w-sm mx-auto italic border border-[#d4d4d4] p-2 rounded">
           Submeta os seus palpites, valide localmente e partilhe directamente o bilhete no WhatsApp com o seu grupo!
         </p>
       </header>
@@ -904,7 +904,7 @@ export default function App() {
                 </button>
 
                 <div className="w-full text-[9px] text-neutral-500 mt-2 flex items-start bg-neutral-100/40 p-2 rounded border border-neutral-200/50">
-                  <Info className="h-3.5 w-3.5 shrink-0 mr-1.5 text-amber-600 mt-0.5" />
+                  <Info style={{ color: '#21170c' }} className="h-3.5 w-3.5 shrink-0 mr-1.5 mt-0.5" />
                   <span className="leading-tight text-left">Palpites gravados localmente para garantir exclusividade e gerar o bilhete de segurança antes de ir ao WhatsApp.</span>
                 </div>
               </div>
