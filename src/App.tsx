@@ -594,7 +594,7 @@ export default function App() {
                   </span>
                   <span 
                     style={{ fontFamily: "'Inter', sans-serif" }} 
-                    className="text-[9px] sm:text-[11px] font-black tracking-[0.16em] text-[#ebdcb9] uppercase leading-none mt-2"
+                    className="text-[12px] leading-[12px] font-black tracking-[0.16em] text-[#ebdcb9] uppercase mt-2"
                   >
                     COPA DO MUNDO 2026
                   </span>
