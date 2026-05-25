@@ -71,7 +71,7 @@ export function formatWhatsAppMessage({
     const [year, month, day] = match.date.split("-");
     const formattedDate = `${day}/${month}`;
     const gameNum = String(index).padStart(2, '0');
-    text += `🔹${gameNum} • ${match.team1} (🚫Fechado) ${match.team2} • ${formattedDate} ${match.time}h\n`;
+    text += `🔹${gameNum} • ${getTeamFlag(match.team1)} ${match.team1} (🚫Fechado) ${match.team2} ${getTeamFlag(match.team2)} • ${formattedDate} ${match.time}h\n`;
   });
 
   // Divider between closed matches and open matches if both exist
@@ -90,7 +90,7 @@ export function formatWhatsAppMessage({
     const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
     const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
     
-    text += `🔹${gameNum} • ${match.team1} ${score1} x ${score2} ${match.team2} • ${formattedDate} ${match.time}h\n`;
+    text += `🔹${gameNum} • ${getTeamFlag(match.team1)} ${match.team1} ${score1} x ${score2} ${match.team2} ${getTeamFlag(match.team2)} • ${formattedDate} ${match.time}h\n`;
   });
 
   // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
@@ -107,7 +107,7 @@ export function formatWhatsAppMessage({
       const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
       const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
       
-      text += `🔹 ${match.team1} ${score1} x ${score2} ${match.team2} • ${formattedDate} ${match.time}h\n`;
+      text += `🔹 ${getTeamFlag(match.team1)} ${match.team1} ${score1} x ${score2} ${match.team2} ${getTeamFlag(match.team2)} • ${formattedDate} ${match.time}h\n`;
     });
   }
 

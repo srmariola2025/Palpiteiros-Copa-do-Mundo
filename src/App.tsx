@@ -22,7 +22,8 @@ import {
   Clock, 
   Share2,
   Trash2,
-  Info
+  Info,
+  X
 } from "lucide-react";
 
 import { openFootballMockData, getTeamFlag, groupStageSecondRoundMatches } from "./data/mockSoccerData";
@@ -32,6 +33,8 @@ import { loadOpenFootballDataFromURL } from "./utils/openFootballLoader";
 
 import Barcode from "./components/Barcode";
 import InfoModal from "./components/InfoModal";
+import TeamCardModal from "./components/TeamCardModal";
+import TeamFlag from "./components/TeamFlag";
 
 export default function App() {
   // 1. Core State
@@ -40,7 +43,12 @@ export default function App() {
   const [showSimulator, setShowSimulator] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      return params.has("test") || params.has("debug") || localStorage.getItem("loto_debug_active") === "true";
+      if (params.has("test") || params.has("debug")) return true;
+      try {
+        return localStorage.getItem("loto_debug_active") === "true";
+      } catch (e) {
+        return false;
+      }
     }
     return false;
   });
@@ -49,41 +57,61 @@ export default function App() {
 
   // Dynamic Simulated or Live current date in Brasília Time (UTC-3)
   const [simulatedDate, setSimulatedDate] = useState<Date>(() => {
-    const stored = localStorage.getItem("loto_simulated_date_brt");
-    if (stored) return new Date(stored);
+    try {
+      const stored = localStorage.getItem("loto_simulated_date_brt");
+      if (stored) return new Date(stored);
+    } catch (e) {
+      // ignore
+    }
     
     // Default to sample date if in test mode, otherwise the real live date (which is before the initial games)
-    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-    const isTestActive = params?.has("test") || params?.has("debug") || localStorage.getItem("loto_debug_active") === "true";
-    if (isTestActive) {
-      return new Date("2026-06-11T16:00:00-03:00");
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      let isTestActive = params.has("test") || params.has("debug");
+      try {
+        if (localStorage.getItem("loto_debug_active") === "true") {
+          isTestActive = true;
+        }
+      } catch (e) {}
+      if (isTestActive) {
+        return new Date("2026-06-11T16:00:00-03:00");
+      }
     }
     return new Date();
   });
 
-  const handleTrophyClick = () => {
-    setDebugClicks(prev => {
-      const next = prev + 1;
-      if (next >= 10) {
-        setShowSimulator(prevShow => {
-          const nextShow = !prevShow;
-          if (nextShow) {
-            localStorage.setItem("loto_debug_active", "true");
-          } else {
-            localStorage.removeItem("loto_debug_active");
-            localStorage.removeItem("loto_simulated_date_brt");
-          }
-          return nextShow;
-        });
-        return 0;
+  const handleTrophyClick = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const nextClicks = debugClicks + 1;
+    if (nextClicks >= 5) {
+      setDebugClicks(0);
+      const nextShow = !showSimulator;
+      setShowSimulator(nextShow);
+      try {
+        if (nextShow) {
+          localStorage.setItem("loto_debug_active", "true");
+        } else {
+          localStorage.removeItem("loto_debug_active");
+          localStorage.removeItem("loto_simulated_date_brt");
+        }
+      } catch (err) {
+        console.warn("Storage inacessível:", err);
       }
-      return next;
-    });
+    } else {
+      setDebugClicks(nextClicks);
+    }
   };
 
   // Ticking effect for live clock
   useEffect(() => {
-    const hasStoredOverride = localStorage.getItem("loto_simulated_date_brt") !== null;
+    let hasStoredOverride = false;
+    try {
+      hasStoredOverride = localStorage.getItem("loto_simulated_date_brt") !== null;
+    } catch (e) {}
+    
     if (!showSimulator && !hasStoredOverride) {
       const interval = setInterval(() => {
         setSimulatedDate(new Date());
@@ -112,6 +140,8 @@ export default function App() {
   const [modalMsg, setModalMsg] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [whatsappDestinationUrl, setWhatsappDestinationUrl] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [selectedTradingCardTeam, setSelectedTradingCardTeam] = useState<string | null>(null);
 
   // 4. Local History tracking so user enjoys client autonomy
   const [registeredKeysHistory, setRegisteredKeysHistory] = useState<string[]>([]);
@@ -275,6 +305,7 @@ export default function App() {
     setPredictions(newPredictions);
     setApiErrorMsg(null);
     setApiSuccessMsg(null);
+    setValidationError(null);
   };
 
   // Handle manual input of score lines
@@ -288,6 +319,7 @@ export default function App() {
         [`score${teamNum}`]: cleanVal
       }
     }));
+    setValidationError(null);
   };
 
   // Handle submission logic & validation criteria
@@ -296,9 +328,7 @@ export default function App() {
 
     // Verification 1: Mandatory fields Check
     if (!fullName.trim()) {
-      setModalTitle("Identificação Em Falta");
-      setModalMsg("Por favor, introduza o seu Nome Completo para assinar o bilhete de apostas.");
-      setIsErrorModalOpen(true);
+      setValidationError("Por favor, preencha o seu Nome Completo para assinar o bilhete.");
       return;
     }
 
@@ -315,11 +345,11 @@ export default function App() {
     );
 
     if (missingPreds.length > 0) {
-      setModalTitle("Palpites Incompletos");
-      setModalMsg(`Ainda faltam definir os placares para ${missingPreds.length} jogo(s) ativo(s). Complete o seu bilhete!`);
-      setIsErrorModalOpen(true);
+      setValidationError(`Preencha todos os resultados! Ainda faltam definir os placares para ${missingPreds.length} jogo(s).`);
       return;
     }
+
+    setValidationError(null);
 
     // Combine predictions for active round and second round
     const listPredictions: UserPrediction[] = [
@@ -369,16 +399,8 @@ export default function App() {
     const finalWhatsAppUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
     setWhatsappDestinationUrl(finalWhatsAppUrl);
 
-    // Prompt user on-screen immediately
-    setModalTitle("Bilhete Validado!");
-    setModalMsg(`${fullName.trim()}, seu palpite para a rodada foi enviado com sucesso!`);
-    setIsSuccessModalOpen(true);
-    setIsRedirecting(true);
-
-    setTimeout(() => {
-      window.open(finalWhatsAppUrl, "_blank", "noopener,noreferrer");
-      setIsRedirecting(false);
-    }, 1200); 
+    // Open directly in a new window/tab without ever modifying current window location inside the iframe
+    window.open(finalWhatsAppUrl, "_blank", "noopener,noreferrer");
   };
 
   // Fetch OpenFootball JSON URL
@@ -462,13 +484,15 @@ export default function App() {
       <header className="relative z-10 w-full max-w-2xl mx-auto mb-6 text-center">
         <div 
           onClick={handleTrophyClick}
-          className="inline-flex items-center space-x-2.5 bg-emerald-900/80 border border-emerald-700 px-5 py-2 rounded-full mb-3 backdrop-blur-xs shadow-lg cursor-pointer select-none active:scale-95 transition-transform"
-          title="Clique 10 vezes para ativar o painel de testes"
+          className="inline-flex flex-col items-center justify-center bg-emerald-900/80 border border-emerald-700 px-5 py-2.5 rounded-2xl mb-3 backdrop-blur-xs shadow-lg cursor-pointer select-none active:scale-95 transition-transform"
+          title="Clique para ativar o painel de testes"
         >
-          <Trophy className="h-6 w-6 text-amber-400 animate-bounce shrink-0" />
-          <h1 className="text-sm font-display font-medium tracking-wider uppercase text-amber-200">
-            Grupo Oficial de palpiteiros da Copa do Mundo 2026
-          </h1>
+          <div className="flex items-center space-x-2.5">
+            <Trophy className="h-6 w-6 text-amber-400 animate-bounce shrink-0" />
+            <h1 className="text-sm font-display font-medium tracking-wider uppercase text-amber-200">
+              Grupo Oficial de palpiteiros da Copa do Mundo 2026
+            </h1>
+          </div>
         </div>
 
         <p className="text-xs text-neutral-300 max-w-sm mx-auto italic border border-[#d4d4d4] p-2 rounded">
@@ -572,6 +596,58 @@ export default function App() {
                   Resetar Relógio ⏰
                 </button>
               </div>
+
+              {/* Maintenance Tools and Data Carga (Modo Manutenção) */}
+              <div className="mt-2.5 pt-2 border-t border-emerald-800/40 flex flex-col space-y-2">
+                <div className="flex items-center justify-between text-[9px] text-[#f5be18] font-bold">
+                  <span>⚙️ Painel de Manutenção & Carga de Dados (JSON / API)</span>
+                </div>
+                
+                <form onSubmit={handleFetchExternalJson} className="flex gap-1.5 items-center">
+                  <input
+                    type="url"
+                    placeholder="https://raw.githubusercontent.com/.../soccer.json"
+                    value={customJsonUrl}
+                    onChange={(e) => setCustomJsonUrl(e.target.value)}
+                    className="flex-1 bg-neutral-950 text-[9px] text-emerald-100 border border-emerald-800/80 rounded px-1.5 py-0.5 focus:outline-none placeholder-emerald-800/60"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isFetchingUrl}
+                    className="px-2 py-0.5 rounded bg-emerald-700 text-white font-bold hover:bg-emerald-600 disabled:opacity-50 text-[9px] whitespace-nowrap cursor-pointer"
+                  >
+                    {isFetchingUrl ? "Carregando..." : "Carregar"}
+                  </button>
+                </form>
+
+                {apiErrorMsg && (
+                  <div className="text-[8px] text-red-400 bg-red-950/40 p-1 rounded border border-red-900/60 leading-tight">
+                    {apiErrorMsg}
+                  </div>
+                )}
+                {apiSuccessMsg && (
+                  <div className="text-[8px] text-emerald-400 bg-emerald-950/40 p-1 rounded border border-emerald-900/60 leading-tight">
+                    {apiSuccessMsg}
+                  </div>
+                )}
+
+                <div className="flex gap-1 text-[8px]">
+                  <button
+                    type="button"
+                    onClick={handleRestoreDefaultModel}
+                    className="px-1.5 py-0.5 rounded border border-emerald-800/60 bg-[#143e24]/60 text-emerald-300 hover:bg-[#143e24] cursor-pointer"
+                  >
+                    Restaurar Copa 2026 🇧🇷
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleWipeValidationStorage}
+                    className="px-1.5 py-0.5 rounded border border-red-800/50 bg-red-950/40 text-red-300 hover:bg-red-900/40 cursor-pointer"
+                  >
+                    Limpar Histórico Local 🧹
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -650,7 +726,7 @@ export default function App() {
                 {/* Name */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-neutral-600 block uppercase">
-                    Nome Completo <span className="text-red-600">*</span>
+                    Nome usado nos palpiteiros <span className="text-red-600">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -658,7 +734,10 @@ export default function App() {
                       required
                       placeholder="Ex: Thiago Medeiros"
                       value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      onChange={(e) => {
+                        setFullName(e.target.value);
+                        if (validationError) setValidationError(null);
+                      }}
                       className="w-full bg-[#faf6eb] border border-neutral-400/80 rounded px-2.5 py-1.5 text-xs text-neutral-900 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-800"
                     />
                   </div>
@@ -675,7 +754,7 @@ export default function App() {
                     <span className="text-[8px] bg-[#143e24] text-white px-1.5 py-0.5 rounded font-mono">FASE ATIVA</span>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {activeMatches.map((match) => {
                       const idx = competitionData.matches.findIndex(m => m.id === match.id);
                       const prediction = predictions[match.id] || { score1: "", score2: "" };
@@ -683,62 +762,60 @@ export default function App() {
                       const isStarted = isMatchStarted(match, simulatedDate);
 
                       return (
-                        <div 
-                          key={match.id} 
-                          className={`p-2.5 border rounded-md transition-all duration-150 flex flex-col space-y-1.5 relative overflow-hidden ${
-                            isStarted 
-                              ? "bg-neutral-100/70 border-neutral-300 opacity-95 text-neutral-400"
-                              : isRowFilled 
-                                ? "bg-amber-100/60 border-neutral-400" 
-                                : "bg-neutral-500/5 hover:bg-neutral-500/10 border-neutral-300"
-                          }`}
-                        >
+                        <div key={match.id} className="space-y-1">
                           {/* Match Header metadata */}
-                          <div className="flex flex-col space-y-0.5 text-[9px] text-neutral-500 pb-1 border-b border-neutral-200 border-dashed">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-[#143e24]">
-                                JOGO #{String(idx + 1).padStart(2, "0")} {match.group ? `(${match.group})` : ""}
-                              </span>
-                              <span className="flex items-center space-x-1 font-mono">
-                                <Calendar className="h-2 w-2" />
-                                <span>{match.date}</span>
-                                <Clock className="h-2 w-2 ml-1" />
-                                <span className="font-bold text-neutral-700">{match.time} BR</span>
-                              </span>
-                            </div>
-                            {match.stadium && (
-                              <div className="text-[8px] text-neutral-400 italic font-medium truncate">
-                                📍 {match.stadium}
-                              </div>
-                            )}
+                          <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
+                            <span className="font-bold text-[#143e24]">
+                              JOGO #{String(idx + 1).padStart(2, "0")} {match.group ? `(${match.group})` : ""}
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <span>{match.date} • {match.time} BR</span>
+                              {match.stadium && (
+                                <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
+                              )}
+                            </span>
                           </div>
 
-                          {/* Flex Match Row */}
-                          <div className="flex items-center justify-between gap-1.5">
-                            {/* Home team */}
-                            <div className="flex-1 flex items-center justify-end space-x-1.5 text-right overflow-hidden">
-                              <span className={`text-[11px] font-bold truncate ${isStarted ? "text-neutral-500 line-through" : "text-neutral-800"}`} title={match.team1}>
+                          {/* Beautiful Rounded Capsule Row */}
+                          <div 
+                            className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
+                              isStarted 
+                                ? "bg-neutral-100/80 border-neutral-200 opacity-80"
+                                : isRowFilled 
+                                  ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
+                                  : "border-neutral-300 hover:border-neutral-400"
+                            }`}
+                          >
+                            {/* Left team: Flag + Text */}
+                            <div 
+                              onClick={() => setSelectedTradingCardTeam(match.team1)}
+                              className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                              title={`Clique para ver a Figurinha de ${match.team1}`}
+                            >
+                              <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                              </div>
+                              <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
                                 {match.team1}
-                              </span>
-                              <span className="text-base select-none shrink-0" role="img" aria-label={match.team1}>
-                                {getTeamFlag(match.team1)}
                               </span>
                             </div>
 
-                            {/* Score Inputs / Locked Stamp */}
+                            {/* Center Section: score pill */}
                             {isStarted ? (
-                              <div className="relative flex flex-col items-center justify-center shrink-0 w-28 py-0.5">
-                                <span className="text-[8px] text-red-600 font-extrabold uppercase font-mono tracking-widest border border-red-600/85 rounded px-1.5 py-0.5 inline-block bg-red-100/50 select-none border-dashed animate-pulse">
-                                  🚫 JOGO INICIADO
-                                </span>
-                                {(prediction.score1 !== "" && prediction.score2 !== "") && (
-                                  <span className="text-[8px] text-[#143e24] font-mono font-bold mt-1">
-                                    ({prediction.score1} x {prediction.score2})
+                                <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
+                                  <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
+                                    INICIADO
                                   </span>
-                                )}
-                              </div>
+                                  {(prediction.score1 !== "" && prediction.score2 !== "") ? (
+                                    <span className="text-[11px] font-black text-neutral-800 tracking-wider">
+                                      {prediction.score1}-{prediction.score2}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
+                                  )}
+                                </div>
                             ) : (
-                              <div className="flex items-center space-x-1 shrink-0 bg-white border border-neutral-400 rounded px-1 py-0.5">
+                              <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
                                 <input
                                   type="number"
                                   min="0"
@@ -747,11 +824,9 @@ export default function App() {
                                   placeholder="0"
                                   value={prediction.score1}
                                   onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
-                                  className="w-7 h-7 bg-transparent border-0 text-center font-bold text-sm text-neutral-900 focus:outline-none focus:ring-0 placeholder-neutral-300"
+                                  className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
                                 />
-                                <span className="text-[10px] font-bold text-neutral-400 px-0.5 select-none">
-                                  x
-                                </span>
+                                <span className="text-[10px] font-black text-[#032110] select-none">-</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -760,19 +835,23 @@ export default function App() {
                                   placeholder="0"
                                   value={prediction.score2}
                                   onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
-                                  className="w-7 h-7 bg-transparent border-0 text-center font-bold text-sm text-neutral-900 focus:outline-none focus:ring-0 placeholder-neutral-300"
+                                  className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
                                 />
                               </div>
                             )}
 
-                            {/* Away team */}
-                            <div className="flex-1 flex items-center justify-start space-x-1.5 text-left overflow-hidden">
-                              <span className="text-base select-none shrink-0" role="img" aria-label={match.team2}>
-                                {getTeamFlag(match.team2)}
-                              </span>
-                              <span className={`text-[11px] font-bold truncate ${isStarted ? "text-neutral-500 line-through" : "text-neutral-800"}`} title={match.team2}>
+                            {/* Right team: Text + Flag */}
+                            <div 
+                              onClick={() => setSelectedTradingCardTeam(match.team2)}
+                              className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                              title={`Clique para ver a Figurinha de ${match.team2}`}
+                            >
+                              <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
                                 {match.team2}
                               </span>
+                              <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -789,90 +868,103 @@ export default function App() {
                       <span className="text-[8px] bg-emerald-800 text-white px-1.5 py-0.5 rounded font-mono">LIBERADO</span>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {secondRoundMatchesToShow.map((match, sIdx) => {
                         const prediction = predictions[match.id] || { score1: "", score2: "" };
                         const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
                         const isStarted = isMatchStarted(match, simulatedDate);
 
                         return (
-                          <div 
-                            key={match.id} 
-                            className={`p-2.5 border rounded-md transition-all duration-150 flex flex-col space-y-1.5 relative overflow-hidden ${
-                              isStarted 
-                                ? "bg-neutral-100/70 border-neutral-300 opacity-95 text-neutral-400"
-                                : isRowFilled 
-                                  ? "bg-amber-100/60 border-neutral-400" 
-                                  : "bg-neutral-500/5 hover:bg-neutral-500/10 border-neutral-300"
-                            }`}
-                          >
+                          <div key={match.id} className="space-y-1">
                             {/* Match Header metadata */}
-                            <div className="flex flex-col space-y-0.5 text-[9px] text-neutral-500 pb-1 border-b border-neutral-200 border-dashed">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-emerald-800">
-                                  JOGO SEGUINTE #{String(sIdx + 1).padStart(2, "0")} ({match.group})
-                                </span>
-                                <span className="flex items-center space-x-1 font-mono">
-                                  <Calendar className="h-2 w-2" />
-                                  <span>{match.date}</span>
-                                  <Clock className="h-2 w-2 ml-1" />
-                                  <span className="font-bold text-[#143e24]">{match.time} BR</span>
-                                </span>
-                              </div>
-                              {match.stadium && (
-                                <div className="text-[8px] text-neutral-400 italic font-medium truncate">
-                                  📍 {match.stadium}
-                                </div>
-                              )}
+                            <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
+                              <span className="font-bold text-emerald-800">
+                                JOGO SEGUINTE #{String(sIdx + 1).padStart(2, "0")} ({match.group})
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <span>{match.date} • {match.time} BR</span>
+                                {match.stadium && (
+                                  <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
+                                )}
+                              </span>
                             </div>
 
-                            {/* Match Row */}
-                            <div className="flex items-center justify-between gap-1.5">
-                              {/* Home team */}
-                              <div className="flex-1 flex items-center justify-end space-x-1.5 text-right overflow-hidden">
-                                <span className="text-[11px] font-bold truncate text-neutral-800" title={match.team1}>
+                            {/* Beautiful Rounded Capsule Row */}
+                            <div 
+                              className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
+                                isStarted 
+                                  ? "bg-neutral-100/80 border-neutral-200 opacity-80"
+                                  : isRowFilled 
+                                    ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
+                                    : "border-neutral-300 hover:border-neutral-400"
+                              }`}
+                            >
+                              {/* Left team: Flag + Text */}
+                              <div 
+                                onClick={() => setSelectedTradingCardTeam(match.team1)}
+                                className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                title={`Clique para ver a Figurinha de ${match.team1}`}
+                              >
+                                <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                  <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                                </div>
+                                <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
                                   {match.team1}
                                 </span>
-                                <span className="text-base select-none shrink-0" role="img" aria-label={match.team1}>
-                                  {getTeamFlag(match.team1)}
-                                </span>
                               </div>
 
-                              {/* Inputs */}
-                              <div className="flex items-center space-x-1 shrink-0 bg-white border border-neutral-400 rounded px-1 py-0.5">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="99"
-                                  inputMode="numeric"
-                                  placeholder="0"
-                                  value={prediction.score1}
-                                  onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
-                                  className="w-7 h-7 bg-transparent border-0 text-center font-bold text-sm text-neutral-900 focus:outline-none focus:ring-0 placeholder-neutral-300"
-                                />
-                                <span className="text-[10px] font-bold text-neutral-400 px-0.5 select-none">
-                                  x
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="99"
-                                  inputMode="numeric"
-                                  placeholder="0"
-                                  value={prediction.score2}
-                                  onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
-                                  className="w-7 h-7 bg-transparent border-0 text-center font-bold text-sm text-neutral-900 focus:outline-none focus:ring-0 placeholder-neutral-300"
-                                />
-                              </div>
+                              {/* Center Section: score pill */}
+                              {isStarted ? (
+                                <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
+                                  <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
+                                    INICIADO
+                                  </span>
+                                  {(prediction.score1 !== "" && prediction.score2 !== "") ? (
+                                    <span className="text-[11px] font-black text-neutral-800 tracking-wider">
+                                      {prediction.score1}-{prediction.score2}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="99"
+                                    inputMode="numeric"
+                                    placeholder="0"
+                                    value={prediction.score1}
+                                    onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
+                                    className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                  />
+                                  <span className="text-[10px] font-black text-[#032110] select-none">-</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="99"
+                                    inputMode="numeric"
+                                    placeholder="0"
+                                    value={prediction.score2}
+                                    onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
+                                    className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                  />
+                                </div>
+                              )}
 
-                              {/* Away team */}
-                              <div className="flex-1 flex items-center justify-start space-x-1.5 text-left overflow-hidden">
-                                <span className="text-base select-none shrink-0" role="img" aria-label={match.team2}>
-                                  {getTeamFlag(match.team2)}
-                                </span>
-                                <span className="text-[11px] font-bold truncate text-neutral-800" title={match.team2}>
+                              {/* Right team: Text + Flag */}
+                              <div 
+                                onClick={() => setSelectedTradingCardTeam(match.team2)}
+                                className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                title={`Clique para ver a Figurinha de ${match.team2}`}
+                              >
+                                <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
                                   {match.team2}
                                 </span>
+                                <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                  <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -894,6 +986,17 @@ export default function App() {
                   <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                   <span>Limpar Bilhete</span>
                 </button>
+
+                {validationError && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="w-full bg-[#fdf2f2] border-l-4 border-[#e02424] text-[#9b1c1c] text-xs font-semibold py-2 px-3 rounded-r flex items-start space-x-2"
+                  >
+                    <span className="text-base shrink-0 leading-none mt-[1px]">⚠️</span>
+                    <span className="leading-tight text-left">{validationError}</span>
+                  </motion.div>
+                )}
 
                 <button
                   type="submit"
@@ -1034,6 +1137,12 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      <TeamCardModal
+        isOpen={selectedTradingCardTeam !== null}
+        teamName={selectedTradingCardTeam || ""}
+        onClose={() => setSelectedTradingCardTeam(null)}
+      />
 
     </div>
   );
