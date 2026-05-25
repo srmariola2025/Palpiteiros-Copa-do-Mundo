@@ -71,7 +71,9 @@ export function formatWhatsAppMessage({
     const [year, month, day] = match.date.split("-");
     const formattedDate = `${day}/${month}`;
     const gameNum = String(index).padStart(2, '0');
-    text += `🔹${gameNum} • ${getTeamFlag(match.team1)} ${match.team1} (🚫Fechado) ${match.team2} ${getTeamFlag(match.team2)} • ${formattedDate} ${match.time}h\n`;
+    const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
+    text += `🔹${gameNum} • ${match.team1} ${getTeamFlag(match.team1)} (🚫Fechado) ${getTeamFlag(match.team2)} ${match.team2}\n`;
+    text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
   });
 
   // Divider between closed matches and open matches if both exist
@@ -89,8 +91,10 @@ export function formatWhatsAppMessage({
     const prediction = predictions.find(p => p.matchId === match.id);
     const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
     const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
+    const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
     
-    text += `🔹${gameNum} • ${getTeamFlag(match.team1)} ${match.team1} ${score1} x ${score2} ${match.team2} ${getTeamFlag(match.team2)} • ${formattedDate} ${match.time}h\n`;
+    text += `🔹${gameNum} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
+    text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
   });
 
   // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
@@ -106,8 +110,10 @@ export function formatWhatsAppMessage({
       const prediction = predictions.find(p => p.matchId === match.id);
       const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
       const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
+      const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
       
-      text += `🔹 ${getTeamFlag(match.team1)} ${match.team1} ${score1} x ${score2} ${match.team2} ${getTeamFlag(match.team2)} • ${formattedDate} ${match.time}h\n`;
+      text += `🔹 ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
+      text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
     });
   }
 
