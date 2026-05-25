@@ -904,7 +904,7 @@ export default function App() {
                 </button>
 
                 <div className="w-full text-[9px] text-neutral-500 mt-2 flex items-start bg-neutral-100/40 p-2 rounded border border-neutral-200/50">
-                  <Info style={{ color: '#21170c' }} className="h-3.5 w-3.5 shrink-0 mr-1.5 mt-0.5" />
+                  <Info style={{ backgroundColor: '#d5cbcc', color: '#d31b08' }} className="h-3.5 w-3.5 shrink-0 mr-1.5 mt-0.5 rounded-sm p-[1px]" />
                   <span className="leading-tight text-left">Palpites gravados localmente para garantir exclusividade e gerar o bilhete de segurança antes de ir ao WhatsApp.</span>
                 </div>
               </div>
