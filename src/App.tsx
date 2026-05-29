@@ -498,12 +498,44 @@ export default function App() {
     return realNow >= matchTimeBRT || simulatedDate >= matchTimeBRT;
   };
 
+  const isGroupStageFinished = (): boolean => {
+    const groupMatches = competitionData.matches.filter(m => (m.stage || "Fase de Grupos") === "Fase de Grupos");
+    if (groupMatches.length === 0) return false;
+    
+    const sorted = [...groupMatches].sort((a, b) => {
+      const timeValA = new Date(`${a.date}T${a.time}:00-03:00`).getTime();
+      const timeValB = new Date(`${b.date}T${b.time}:00-03:00`).getTime();
+      return timeValA - timeValB;
+    });
+    
+    const latestGroupMatch = sorted[sorted.length - 1];
+    const matchTimeBRT = new Date(`${latestGroupMatch.date}T${latestGroupMatch.time}:00-03:00`);
+    const matchEndTimeBRT = new Date(matchTimeBRT.getTime() + 2 * 60 * 60 * 1000); // 2 hours
+    const realNow = new Date();
+    return realNow >= matchEndTimeBRT || simulatedDate >= matchEndTimeBRT;
+  };
+
   const isGroupPredictionLocked = (groupName: string): boolean => {
     return isGlobalPredictionLocked();
   };
 
   const isFinalistsPredictionLocked = (): boolean => {
-    return isGlobalPredictionLocked();
+    const r32Matches = competitionData.matches.filter(m => {
+      const stage = String(m.stage || "").toLowerCase();
+      return stage === "16 de final" || stage === "round of 32";
+    });
+    if (r32Matches.length === 0) return false;
+    
+    const sorted = [...r32Matches].sort((a, b) => {
+      const timeA = new Date(`${a.date}T${a.time}:00-03:00`).getTime();
+      const timeB = new Date(`${b.date}T${b.time}:00-03:00`).getTime();
+      return timeA - timeB;
+    });
+    
+    const earliestR32 = sorted[0];
+    const matchTimeBRT = new Date(`${earliestR32.date}T${earliestR32.time}:00-03:00`);
+    const realNow = new Date();
+    return realNow >= matchTimeBRT || simulatedDate >= matchTimeBRT;
   };
 
   const getGroupTeams = (fullGroupName: string): string[] => {
@@ -699,13 +731,19 @@ export default function App() {
 
     // REGRA 1: PROGNÓSTICOS (Grupos A-L + 4 Finalistas)
     const isLocked = isGlobalPredictionLocked();
-    if (!isLocked && !hadSavedPrognosticos.current) {
+    if (!hadSavedPrognosticos.current) {
       const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-      const missingGroups = groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second);
-      const missingFinalists = !finalistPredictions.first || !finalistPredictions.second || !finalistPredictions.third || !finalistPredictions.fourth;
+      const missingGroups = !isLocked ? groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second) : [];
+      const missingFinalists = (isGroupStageFinished() && !isFinalistsPredictionLocked())
+        ? (!finalistPredictions.first || !finalistPredictions.second || !finalistPredictions.third || !finalistPredictions.fourth)
+        : false;
 
       if (missingGroups.length > 0 || missingFinalists) {
-        setValidationError("Como este é seu primeiro acesso, você deve preencher TODOS os prognósticos obrigatórios (1º e 2º de todos os grupos A-L e os 4 Finalistas) antes de gerar o bilhete.");
+        if (missingGroups.length > 0) {
+          setValidationError("Como este é seu primeiro acesso, você deve preencher o 1º e 2º de todos os grupos A-L nos prognósticos obrigatórios antes de gerar o bilhete.");
+        } else {
+          setValidationError("Como este é seu primeiro acesso nesta fase, você deve preencher os 4 Finalistas obrigatórios nos prognósticos antes de gerar o bilhete.");
+        }
         return;
       }
     }
@@ -1225,7 +1263,7 @@ export default function App() {
               <div className="mt-4 space-y-4">
 
                 {/* 🏆 FINALISTAS DA COPA 2026 */}
-                {!isFinalistsPredictionLocked() && (
+                {isGroupStageFinished() && !isFinalistsPredictionLocked() && (
                   <div className="bg-[#FFFDE7] border-2 border-[#FFD700] rounded-2xl p-4 shadow-md space-y-3.5 text-neutral-900 border-dashed animate-fade-in max-w-xl mx-auto my-2">
                     <div className="flex items-center space-x-2 pb-1.5 border-b border-amber-200">
                       <span className="text-lg">🏆</span>

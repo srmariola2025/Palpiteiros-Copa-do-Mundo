@@ -61,10 +61,9 @@ export function formatWhatsAppMessage({
   text += `👤 Nome: ${fullName}\n`;
   text += `📅 Data: ${emissionDate}\n\n`;
 
-  // Check if we are in group stage or elimination stage baseado na data real
+  // Check if we are in group stage or elimination stage baseado na data real ou simulada
   const r32StartTime = new Date("2026-06-28T14:00:00-03:00");
-  const realCurrentDate = new Date();
-  const isInitialPhaseRealDate = realCurrentDate < r32StartTime;
+  const isInitialPhaseRealDate = now < r32StartTime;
 
   if (isInitialPhaseRealDate) {
     if (groupPredictions) {
