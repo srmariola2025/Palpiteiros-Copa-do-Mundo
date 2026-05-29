@@ -1225,7 +1225,7 @@ export default function App() {
               <div className="mt-4 space-y-4">
 
                 {/* 🏆 FINALISTAS DA COPA 2026 */}
-                {selectedStageTab !== "Fase de Grupos" && !isFinalistsPredictionLocked() && (
+                {!isFinalistsPredictionLocked() && (
                   <div className="bg-[#FFFDE7] border-2 border-[#FFD700] rounded-2xl p-4 shadow-md space-y-3.5 text-neutral-900 border-dashed animate-fade-in max-w-xl mx-auto my-2">
                     <div className="flex items-center space-x-2 pb-1.5 border-b border-amber-200">
                       <span className="text-lg">🏆</span>
