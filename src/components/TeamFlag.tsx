@@ -9,6 +9,7 @@ export const flagCodes: Record<string, string> = {
   "Canadá": "ca",
   "Bósnia": "ba",
   "Qatar": "qa",
+  "Catar": "qa",
   "Suíça": "ch",
   "Brasil": "br",
   "Marrocos": "ma",

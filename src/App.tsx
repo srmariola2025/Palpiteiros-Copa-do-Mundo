@@ -283,6 +283,103 @@ export default function App() {
   const [predictions, setPredictions] = useState<Record<string, { score1: string; score2: string }>>({});
   const [ticketCode, setTicketCode] = useState("LOTO-INIT-26");
 
+  const hadSavedPrognosticos = useRef<boolean>(false);
+  useEffect(() => {
+    const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+    let found = false;
+    try {
+      for (const g of groupsList) {
+        if (localStorage.getItem(`grupo${g}_1o`) || localStorage.getItem(`grupo${g}_2o`)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        if (
+          localStorage.getItem("finalista_1o") ||
+          localStorage.getItem("finalista_2o") ||
+          localStorage.getItem("finalista_3o") ||
+          localStorage.getItem("finalista_4o")
+        ) {
+          found = true;
+        }
+      }
+    } catch (err) {
+      console.warn("Storage inacessível:", err);
+    }
+    hadSavedPrognosticos.current = found;
+  }, []);
+
+  // Prognósticos States initialized from localStorage as requested
+  const [groupPredictions, setGroupPredictions] = useState<Record<string, { first: string; second: string }>>(() => {
+    const initial: Record<string, { first: string; second: string }> = {};
+    const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+    groupsList.forEach(g => {
+      let first = "";
+      let second = "";
+      try {
+        first = localStorage.getItem(`grupo${g}_1o`) || "";
+        second = localStorage.getItem(`grupo${g}_2o`) || "";
+      } catch (err) {
+        console.warn("Storage inacessível:", err);
+      }
+      initial[g] = { first, second };
+    });
+    return initial;
+  });
+
+  const [finalistPredictions, setFinalistPredictions] = useState<{ first: string; second: string; third: string; fourth: string }>(() => {
+    let first = "";
+    let second = "";
+    let third = "";
+    let fourth = "";
+    try {
+      first = localStorage.getItem("finalista_1o") || "";
+      second = localStorage.getItem("finalista_2o") || "";
+      third = localStorage.getItem("finalista_3o") || "";
+      fourth = localStorage.getItem("finalista_4o") || "";
+    } catch (err) {
+      console.warn("Storage inacessível:", err);
+    }
+    return { first, second, third, fourth };
+  });
+
+  const handleGroupPredictionChange = (g: string, place: "first" | "second", val: string) => {
+    setGroupPredictions(prev => {
+      const groupConfig = { ...prev[g] };
+      groupConfig[place] = val;
+      
+      // Auto-clear second place if it conflicts with first
+      if (place === "first" && groupConfig.second === val) {
+        groupConfig.second = "";
+      }
+      
+      const updated = { ...prev, [g]: groupConfig };
+      try {
+        localStorage.setItem(`grupo${g}_1o`, updated[g].first);
+        localStorage.setItem(`grupo${g}_2o`, updated[g].second);
+      } catch (err) {
+        console.warn("Falha ao salvar prognóstico:", err);
+      }
+      return updated;
+    });
+  };
+
+  const handleFinalistPredictionChange = (place: "first" | "second" | "third" | "fourth", val: string) => {
+    setFinalistPredictions(prev => {
+      const updated = { ...prev, [place]: val };
+      try {
+        localStorage.setItem("finalista_1o", updated.first);
+        localStorage.setItem("finalista_2o", updated.second);
+        localStorage.setItem("finalista_3o", updated.third);
+        localStorage.setItem("finalista_4o", updated.fourth);
+      } catch (err) {
+        console.warn("Falha ao salvar finalista:", err);
+      }
+      return updated;
+    });
+  };
+
   // 2. Integration / Settings State
   const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
   const [customJsonUrl, setCustomJsonUrl] = useState("https://raw.githubusercontent.com/openfootball/football.json/master/2026/worldcup.json");
@@ -388,6 +485,58 @@ export default function App() {
     return now >= matchTimeBRT;
   };
 
+  const isGlobalPredictionLocked = (): boolean => {
+    const sorted = [...competitionData.matches].sort((a, b) => {
+      const timeValA = new Date(`${a.date}T${a.time}:00-03:00`).getTime();
+      const timeValB = new Date(`${b.date}T${b.time}:00-03:00`).getTime();
+      return timeValA - timeValB;
+    });
+    if (sorted.length === 0) return false;
+    const earliestMatch = sorted[0];
+    const matchTimeBRT = new Date(`${earliestMatch.date}T${earliestMatch.time}:00-03:00`);
+    const realNow = new Date();
+    return realNow >= matchTimeBRT || simulatedDate >= matchTimeBRT;
+  };
+
+  const isGroupPredictionLocked = (groupName: string): boolean => {
+    return isGlobalPredictionLocked();
+  };
+
+  const isFinalistsPredictionLocked = (): boolean => {
+    return isGlobalPredictionLocked();
+  };
+
+  const getGroupTeams = (fullGroupName: string): string[] => {
+    const teamsSet = new Set<string>();
+    competitionData.matches.forEach(m => {
+      if ((m.group || "").trim().toLowerCase() === fullGroupName.trim().toLowerCase()) {
+        if (m.team1) teamsSet.add(m.team1);
+        if (m.team2) teamsSet.add(m.team2);
+      }
+    });
+    return Array.from(teamsSet);
+  };
+
+  const getEliminatoriaTeams = (): string[] => {
+    const teamsSet = new Set<string>();
+    competitionData.matches.forEach(m => {
+      const stage = String(m.stage || "").toLowerCase();
+      if (stage === "16 de final" || stage === "round of 32") {
+        if (m.team1 && !m.team1.includes("A Definir")) teamsSet.add(m.team1);
+        if (m.team2 && !m.team2.includes("A Definir")) teamsSet.add(m.team2);
+      }
+    });
+    if (teamsSet.size === 0) {
+      return [
+        "México", "Suíça", "Inglaterra", "Senegal", "França", "Marrocos", "Brasil", "Uruguai",
+        "Argentina", "Estados Unidos", "Portugal", "Suécia", "Alemanha", "Japão", "Holanda", "Noruega",
+        "Espanha", "Egito", "Áustria", "Croácia", "Bélgica", "Paraguai", "Escócia", "Austrália",
+        "Canadá", "Equador", "Colômbia", "Turquia", "Tunísia", "Coreia do Sul", "Gana", "África do Sul"
+      ];
+    }
+    return Array.from(teamsSet).sort();
+  };
+
   // Automatically manage timeline simulation predictions
   const handleSimulateTimeline = (targetDate: Date) => {
     setSimulatedDate(targetDate);
@@ -464,7 +613,19 @@ export default function App() {
 
   // Second round matches are released only if R1 has started or if user is simulating R2/later stages
   const secondRoundMatchesToShow = selectedStageTab === "Fase de Grupos" && hasR1Started
-    ? enrichedMatches.filter(m => m.id.includes("-2r"))
+    ? enrichedMatches.filter(m => {
+        if (!m.id.includes("-2r")) return false;
+        const isTeamFirstRoundInitiated = (team: string): boolean => {
+          const firstRoundMatch = enrichedMatches.find(fr => 
+            !fr.id.includes("-2r") && 
+            (fr.stage || "Fase de Grupos") === "Fase de Grupos" && 
+            (fr.team1 === team || fr.team2 === team)
+          );
+          if (!firstRoundMatch) return false;
+          return isMatchStarted(firstRoundMatch);
+        };
+        return isTeamFirstRoundInitiated(m.team1) || isTeamFirstRoundInitiated(m.team2);
+      })
     : [];
 
   // Pre-fill fields or trigger random results "Surpresinha" for active matches
@@ -536,6 +697,19 @@ export default function App() {
       return;
     }
 
+    // REGRA 1: PROGNÓSTICOS (Grupos A-L + 4 Finalistas)
+    const isLocked = isGlobalPredictionLocked();
+    if (!isLocked && !hadSavedPrognosticos.current) {
+      const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+      const missingGroups = groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second);
+      const missingFinalists = !finalistPredictions.first || !finalistPredictions.second || !finalistPredictions.third || !finalistPredictions.fourth;
+
+      if (missingGroups.length > 0 || missingFinalists) {
+        setValidationError("Como este é seu primeiro acesso, você deve preencher TODOS os prognósticos obrigatórios (1º e 2º de todos os grupos A-L e os 4 Finalistas) antes de gerar o bilhete.");
+        return;
+      }
+    }
+
     // Checking if all matches that are NOT started have predictions
     const editableMatches = activeMatches.filter(m => !isMatchStarted(m));
 
@@ -604,7 +778,10 @@ export default function App() {
       emissionDate,
       ticketCode,
       secondRoundMatches: secondRoundMatchesToShow,
-      simulatedDateStr: new Date().toISOString()
+      simulatedDateStr: new Date().toISOString(),
+      groupPredictions,
+      finalistPredictions,
+      activeStage: selectedStageTab
     });
 
     const encodedText = encodeURIComponent(formattedMsg);
@@ -1046,6 +1223,111 @@ export default function App() {
 
               {/* Match Predictions Area */}
               <div className="mt-4 space-y-4">
+
+                {/* 🏆 FINALISTAS DA COPA 2026 */}
+                {selectedStageTab !== "Fase de Grupos" && !isFinalistsPredictionLocked() && (
+                  <div className="bg-[#FFFDE7] border-2 border-[#FFD700] rounded-2xl p-4 shadow-md space-y-3.5 text-neutral-900 border-dashed animate-fade-in max-w-xl mx-auto my-2">
+                    <div className="flex items-center space-x-2 pb-1.5 border-b border-amber-200">
+                      <span className="text-lg">🏆</span>
+                      <h3 className="font-display font-extrabold text-[#143e24] text-xs tracking-wider uppercase">
+                        Finalistas da Copa 2026
+                      </h3>
+                    </div>
+
+                    <p className="text-[10px] text-neutral-600 font-medium">
+                      Selecione as quatro melhores equipes em ordem exata antes do pontapé inicial do mata-mata!
+                    </p>
+
+                    <div className="space-y-3">
+                      {/* 1º Colocado */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-black uppercase text-amber-950 flex items-center space-x-1.5">
+                          <span>🥇 1.º Colocado (Campeão)</span>
+                        </label>
+                        <select
+                          id="pred-finalist-1o"
+                          value={finalistPredictions.first}
+                          onChange={(e) => handleFinalistPredictionChange("first", e.target.value)}
+                          className="w-full h-11 px-3 bg-white border-2 border-[#FFD700] rounded-lg text-xs font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                        >
+                          <option value="">-- Escolha o Campeão --</option>
+                          {getEliminatoriaTeams().map(t => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* 2º Colocado */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-black uppercase text-amber-950 flex items-center space-x-1.5">
+                          <span>🥈 2.º Colocado (Vice)</span>
+                        </label>
+                        <select
+                          id="pred-finalist-2o"
+                          value={finalistPredictions.second}
+                          onChange={(e) => handleFinalistPredictionChange("second", e.target.value)}
+                          className="w-full h-11 px-3 bg-white border-2 border-[#FFD700] rounded-lg text-xs font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                          disabled={!finalistPredictions.first}
+                        >
+                          <option value="">-- Escolha o Vice --</option>
+                          {getEliminatoriaTeams()
+                            .filter(t => t !== finalistPredictions.first)
+                            .map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* 3º Colocado */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-black uppercase text-amber-950 flex items-center space-x-1.5">
+                          <span>🥉 3.º Colocado</span>
+                        </label>
+                        <select
+                          id="pred-finalist-3o"
+                          value={finalistPredictions.third}
+                          onChange={(e) => handleFinalistPredictionChange("third", e.target.value)}
+                          className="w-full h-11 px-3 bg-white border-2 border-[#FFD700] rounded-lg text-xs font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                          disabled={!finalistPredictions.second}
+                        >
+                          <option value="">-- Escolha o Terceiro Lugar --</option>
+                          {getEliminatoriaTeams()
+                            .filter(t => t !== finalistPredictions.first && t !== finalistPredictions.second)
+                            .map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* 4º Colocado */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-black uppercase text-[#854d0e] flex items-center space-x-1.5">
+                          <span>🏅 4.º Colocado</span>
+                        </label>
+                        <select
+                          id="pred-finalist-4o"
+                          value={finalistPredictions.fourth}
+                          onChange={(e) => handleFinalistPredictionChange("fourth", e.target.value)}
+                          className="w-full h-11 px-3 bg-white border-2 border-[#FFD700] rounded-lg text-xs font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                          disabled={!finalistPredictions.third}
+                        >
+                          <option value="">-- Escolha o Quarto Lugar --</option>
+                          {getEliminatoriaTeams()
+                            .filter(t => t !== finalistPredictions.first && t !== finalistPredictions.second && t !== finalistPredictions.third)
+                            .map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-dashed border-amber-200 text-center">
+                      <span className="text-[8px] font-mono font-bold text-red-600 uppercase tracking-widest leading-none">
+                        ⚠️ Palpites bloqueados após início da Round of 32 (16 de Final)
+                      </span>
+                    </div>
+                  </div>
+                )}
                 
                 {/* 1.ª RODADA (Main Active Phase Matches) */}
                 <div className="space-y-3">
@@ -1307,6 +1589,68 @@ export default function App() {
                                 Grupo
                               </span>
                             </div>
+
+                            {(() => {
+                              const isLocked = isGroupPredictionLocked(grpItem.groupName);
+                              const groupLetter = grpItem.groupName.replace("Grupo ", "").trim();
+                              const groupPred = groupPredictions[groupLetter] || { first: "", second: "" };
+                              const groupTeams = getGroupTeams(grpItem.groupName);
+                              const firstSelected = groupPred.first;
+                              const secondSelected = groupPred.second;
+
+                              if (isLocked) return null;
+
+                              return (
+                                <div className="bg-[#FFFDE7] border-2 border-[#FFD700] rounded-xl p-3.5 shadow-md space-y-3 text-neutral-900 border-dashed">
+                                  <div className="flex items-center space-x-1.5 pb-1 border-b border-amber-200">
+                                    <span className="text-sm">📊</span>
+                                    <span className="text-[10px] font-extrabold tracking-wider text-amber-900 uppercase">
+                                      Prognóstico de Classificação - Grupo {groupLetter}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                    {/* 1º Colocado */}
+                                    <div className="space-y-1">
+                                      <label className="block text-[9px] font-black uppercase text-amber-950 flex items-center space-x-1">
+                                        <span>🏆 1.º Colocado</span>
+                                      </label>
+                                      <select
+                                        id={`pred-1o-${groupLetter}`}
+                                        value={firstSelected}
+                                        onChange={(e) => handleGroupPredictionChange(groupLetter, "first", e.target.value)}
+                                        className="w-full h-11 px-2.5 bg-white border-2 border-[#FFD700] rounded-lg text-[11px] font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                                      >
+                                        <option value="">-- Selecione --</option>
+                                        {groupTeams.map(t => (
+                                          <option key={t} value={t}>{t}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    {/* 2º Colocado */}
+                                    <div className="space-y-1">
+                                      <label className="block text-[9px] font-black uppercase text-amber-950 flex items-center space-x-1">
+                                        <span>🥈 2.º Colocado</span>
+                                      </label>
+                                      <select
+                                        id={`pred-2o-${groupLetter}`}
+                                        value={secondSelected}
+                                        onChange={(e) => handleGroupPredictionChange(groupLetter, "second", e.target.value)}
+                                        className="w-full h-11 px-2.5 bg-white border-2 border-[#FFD700] rounded-lg text-[11px] font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                                      >
+                                        <option value="">-- Selecione --</option>
+                                        {groupTeams
+                                          .filter(t => t !== firstSelected)
+                                          .map(t => (
+                                            <option key={t} value={t}>{t}</option>
+                                          ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             <div className="space-y-4">
                               {grpItem.matches.map((match) => {

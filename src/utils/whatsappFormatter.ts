@@ -13,7 +13,10 @@ export function formatWhatsAppMessage({
   emissionDate,
   ticketCode,
   secondRoundMatches = [],
-  simulatedDateStr
+  simulatedDateStr,
+  groupPredictions,
+  finalistPredictions,
+  activeStage
 }: {
   fullName: string;
   round: string;
@@ -24,9 +27,13 @@ export function formatWhatsAppMessage({
   ticketCode: string;
   secondRoundMatches?: Match[];
   simulatedDateStr?: string;
+  groupPredictions?: Record<string, { first: string; second: string }>;
+  finalistPredictions?: { first: string; second: string; third: string; fourth: string };
+  activeStage?: string;
 }): string {
   // Line break constants
   const divider = "------------------------------------------";
+  const fancyDivider = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
   const now = simulatedDateStr ? new Date(simulatedDateStr) : new Date();
   
   // Format Competition name dynamically
@@ -36,8 +43,7 @@ export function formatWhatsAppMessage({
   } else if (compName.toLowerCase().includes("brasileirão") || compName.toLowerCase().includes("brasileirao")) {
     compName = "BRASILEIRÃO 2026";
   } else {
-    // default to BRASILEIRÃO 2026 as per requested preview unless it's Copa
-    compName = "BRASILEIRÃO 2026";
+    compName = "COPA DO MUNDO 2026";
   }
 
   // Clean Round name (omit bracketed part if present)
@@ -46,9 +52,52 @@ export function formatWhatsAppMessage({
     cleanRound = cleanRound.split(" [")[0];
   }
 
-  let text = `⚽ PALPITE ${compName.toUpperCase()} ⚽\n`;
-  text += `📅 Rodada: ${cleanRound}\n`;
-  text += `👤 Palpite de: ${fullName.toUpperCase()}\n`;
+  // Generate display ticket code
+  const displayTicketCode = ticketCode.replace("LOTO-", "SER-2026-F");
+
+  // Beautiful Header as per template
+  let text = `🎫 PALPITEIROS COPA 2026\n`;
+  text += `📋 SÉRIE: ${displayTicketCode}\n`;
+  text += `👤 Nome: ${fullName}\n`;
+  text += `📅 Data: ${emissionDate}\n\n`;
+
+  // Check if we are in group stage or elimination stage baseado na data real
+  const r32StartTime = new Date("2026-06-28T14:00:00-03:00");
+  const realCurrentDate = new Date();
+  const isInitialPhaseRealDate = realCurrentDate < r32StartTime;
+
+  if (isInitialPhaseRealDate) {
+    if (groupPredictions) {
+      const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+      const filledGroups = groupsList.filter(g => groupPredictions[g]?.first && groupPredictions[g]?.second);
+      
+      if (filledGroups.length > 0) {
+        text += `📊 PROGNÓSTICOS DE CLASSIFICAÇÃO:\n`;
+        text += `${fancyDivider}\n`;
+        filledGroups.forEach(g => {
+          text += `Grupo ${g}: 1º ${groupPredictions[g].first}, 2º ${groupPredictions[g].second}\n`;
+        });
+        text += `${fancyDivider}\n\n`;
+      }
+    }
+  } else {
+    if (finalistPredictions) {
+      const hasAnyFinalist = finalistPredictions.first || finalistPredictions.second || finalistPredictions.third || finalistPredictions.fourth;
+      
+      if (hasAnyFinalist) {
+        text += `🏆 FINALISTAS DA COPA:\n`;
+        text += `${fancyDivider}\n`;
+        if (finalistPredictions.first) text += `🥇 1º (Campeão): ${finalistPredictions.first}\n`;
+        if (finalistPredictions.second) text += `🥈 2º (Vice): ${finalistPredictions.second}\n`;
+        if (finalistPredictions.third) text += `🥉 3º: ${finalistPredictions.third}\n`;
+        if (finalistPredictions.fourth) text += `4º: ${finalistPredictions.fourth}\n`;
+        text += `${fancyDivider}\n\n`;
+      }
+    }
+  }
+
+  // Header for Matches
+  text += `⚽ JOGOS - ${cleanRound.toUpperCase()}:\n`;
   text += `${divider}\n`;
 
   // Filter main round matches into closed and open ones
@@ -124,9 +173,6 @@ export function formatWhatsAppMessage({
       text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
     });
   }
-
-  // Format the security ticket code
-  const displayTicketCode = ticketCode.replace("LOTO-", "BRASIL-");
 
   text += `${divider}\n`;
   text += `🗝️ Código de Segurança: ${displayTicketCode}\n`;
