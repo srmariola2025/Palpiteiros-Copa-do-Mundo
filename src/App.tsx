@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Trophy, 
@@ -27,19 +27,154 @@ import {
 } from "lucide-react";
 
 import { openFootballMockData, getTeamFlag, groupStageSecondRoundMatches } from "./data/mockSoccerData";
-import { CompetitionData, UserPrediction } from "./types";
+import { CompetitionData, UserPrediction, Match } from "./types";
 import { formatWhatsAppMessage, generateTicketCode } from "./utils/whatsappFormatter";
 import { loadOpenFootballDataFromURL } from "./utils/openFootballLoader";
+import { validateOpenFootballDataFor2026 } from "./utils/fifaValidator";
 
 import Barcode from "./components/Barcode";
 import InfoModal from "./components/InfoModal";
 import TeamCardModal from "./components/TeamCardModal";
 import TeamFlag from "./components/TeamFlag";
 
+const getGroupColors = (groupName: string) => {
+  const cleanName = groupName.trim().toUpperCase();
+  if (cleanName.includes("GRUPO A")) {
+    return {
+      border: "border-emerald-500/40",
+      bg: "bg-emerald-50/20",
+      text: "text-emerald-800",
+      badge: "bg-emerald-100 text-emerald-800 border border-emerald-300",
+      dot: "bg-emerald-500"
+    };
+  }
+  if (cleanName.includes("GRUPO B")) {
+    return {
+      border: "border-rose-500/40",
+      bg: "bg-rose-50/20",
+      text: "text-rose-800",
+      badge: "bg-rose-100 text-rose-800 border border-rose-300",
+      dot: "bg-rose-500"
+    };
+  }
+  if (cleanName.includes("GRUPO C")) {
+    return {
+      border: "border-amber-500/40",
+      bg: "bg-amber-50/25",
+      text: "text-amber-800",
+      badge: "bg-amber-100 text-amber-800 border border-amber-300",
+      dot: "bg-amber-500"
+    };
+  }
+  if (cleanName.includes("GRUPO D")) {
+    return {
+      border: "border-blue-500/40",
+      bg: "bg-blue-50/20",
+      text: "text-blue-800",
+      badge: "bg-blue-100 text-blue-800 border border-blue-300",
+      dot: "bg-blue-500"
+    };
+  }
+  if (cleanName.includes("GRUPO E")) {
+    return {
+      border: "border-purple-500/40",
+      bg: "bg-purple-50/15",
+      text: "text-purple-800",
+      badge: "bg-purple-100 text-purple-800 border border-purple-300",
+      dot: "bg-purple-500"
+    };
+  }
+  if (cleanName.includes("GRUPO F")) {
+    return {
+      border: "border-orange-500/40",
+      bg: "bg-orange-50/20",
+      text: "text-orange-850",
+      badge: "bg-orange-100 text-orange-800 border border-orange-300",
+      dot: "bg-orange-500"
+    };
+  }
+  if (cleanName.includes("GRUPO G")) {
+    return {
+      border: "border-teal-500/40",
+      bg: "bg-teal-50/20",
+      text: "text-teal-850",
+      badge: "bg-teal-100 text-teal-850 border border-teal-300",
+      dot: "bg-teal-500"
+    };
+  }
+  if (cleanName.includes("GRUPO H")) {
+    return {
+      border: "border-indigo-500/40",
+      bg: "bg-indigo-50/20",
+      text: "text-indigo-800",
+      badge: "bg-indigo-100 text-indigo-800 border border-indigo-300",
+      dot: "bg-indigo-500"
+    };
+  }
+  if (cleanName.includes("GRUPO I")) {
+    return {
+      border: "border-pink-500/40",
+      bg: "bg-pink-50/15",
+      text: "text-pink-800",
+      badge: "bg-pink-100 text-pink-800 border border-pink-300",
+      dot: "bg-pink-500"
+    };
+  }
+  if (cleanName.includes("GRUPO J")) {
+    return {
+      border: "border-cyan-500/40",
+      bg: "bg-cyan-50/20",
+      text: "text-cyan-800",
+      badge: "bg-cyan-100 text-cyan-800 border border-cyan-300",
+      dot: "bg-cyan-500"
+    };
+  }
+  if (cleanName.includes("GRUPO K")) {
+    return {
+      border: "border-fuchsia-500/40",
+      bg: "bg-fuchsia-50/15",
+      text: "text-fuchsia-800",
+      badge: "bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-300",
+      dot: "bg-fuchsia-500"
+    };
+  }
+  if (cleanName.includes("GRUPO L")) {
+    return {
+      border: "border-lime-500/40",
+      bg: "bg-lime-50/20",
+      text: "text-lime-800",
+      badge: "bg-lime-100 text-lime-800 border border-lime-300",
+      dot: "bg-lime-500"
+    };
+  }
+  return {
+    border: "border-neutral-300/60",
+    bg: "bg-neutral-50/10",
+    text: "text-neutral-700",
+    badge: "bg-neutral-100 text-neutral-800 border border-neutral-300",
+    dot: "bg-neutral-400"
+  };
+};
+
 export default function App() {
   // 1. Core State
-  const [competitionData, setCompetitionData] = useState<CompetitionData>(openFootballMockData);
+  const [competitionData, setCompetitionData] = useState<CompetitionData>(() => {
+    const raw = { ...openFootballMockData };
+    const groupMatchesIds = new Set(raw.matches.map(m => m.id));
+    const mergedMatches = [...raw.matches];
+    groupStageSecondRoundMatches.forEach(m => {
+      if (!groupMatchesIds.has(m.id)) {
+        mergedMatches.push(m);
+      }
+    });
+    raw.matches = mergedMatches;
+    return raw;
+  });
   
+  const [selectedStageTab, setSelectedStageTab] = useState<string>("Fase de Grupos");
+  const bracketContainerRef = useRef<HTMLDivElement>(null);
+
+  // --- TRIAL/TEST MODE CONTROLLER ---
   const [showSimulator, setShowSimulator] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -64,7 +199,6 @@ export default function App() {
       // ignore
     }
     
-    // Default to sample date if in test mode, otherwise the real live date (which is before the initial games)
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       let isTestActive = params.has("test") || params.has("debug");
@@ -80,13 +214,29 @@ export default function App() {
     return new Date();
   });
 
+  // Ticking effect for real clock when not simulated/frozen
+  useEffect(() => {
+    let hasStoredOverride = false;
+    try {
+      hasStoredOverride = localStorage.getItem("loto_simulated_date_brt") !== null;
+    } catch (e) {}
+    
+    if (!showSimulator && !hasStoredOverride) {
+      const interval = setInterval(() => {
+        setSimulatedDate(new Date());
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [showSimulator]);
+
   const handleTrophyClick = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     const nextClicks = debugClicks + 1;
-    if (nextClicks >= 5) {
+    // Exactly 10 clicks to toggle simulator as requested
+    if (nextClicks >= 10) {
       setDebugClicks(0);
       const nextShow = !showSimulator;
       setShowSimulator(nextShow);
@@ -105,20 +255,29 @@ export default function App() {
     }
   };
 
-  // Ticking effect for live clock
+  // --- SYNC SWIPE CAROUSEL SCROLL POSITION WITH TAB SELECTION ---
   useEffect(() => {
-    let hasStoredOverride = false;
-    try {
-      hasStoredOverride = localStorage.getItem("loto_simulated_date_brt") !== null;
-    } catch (e) {}
-    
-    if (!showSimulator && !hasStoredOverride) {
-      const interval = setInterval(() => {
-        setSimulatedDate(new Date());
-      }, 1000);
-      return () => clearInterval(interval);
+    if (selectedStageTab !== "Fase de Grupos" && bracketContainerRef.current) {
+      let targetColId = "";
+      if (selectedStageTab === "16 de Final") targetColId = "col-16_avos";
+      else if (selectedStageTab === "Oitavas de Final") targetColId = "col-oitavas";
+      else if (selectedStageTab === "Quartas de Final") targetColId = "col-quartas";
+      else if (selectedStageTab === "Semifinais") targetColId = "col-semis";
+      else if (selectedStageTab === "Disputa de 3º Lugar") targetColId = "col-terceiro";
+      else if (selectedStageTab === "Final") targetColId = "col-final";
+
+      if (targetColId) {
+        const targetElement = bracketContainerRef.current.querySelector(`#${targetColId}`);
+        if (targetElement) {
+          targetElement.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "center"
+          });
+        }
+      }
     }
-  }, [showSimulator]);
+  }, [selectedStageTab]);
 
   const [fullName, setFullName] = useState("");
   const [predictions, setPredictions] = useState<Record<string, { score1: string; score2: string }>>({});
@@ -126,7 +285,7 @@ export default function App() {
 
   // 2. Integration / Settings State
   const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
-  const [customJsonUrl, setCustomJsonUrl] = useState("");
+  const [customJsonUrl, setCustomJsonUrl] = useState("https://raw.githubusercontent.com/openfootball/football.json/master/2026/worldcup.json");
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [apiSuccessMsg, setApiSuccessMsg] = useState<string | null>(null);
   const [apiErrorMsg, setApiErrorMsg] = useState<string | null>(null);
@@ -158,6 +317,22 @@ export default function App() {
 
     // Read previous records history
     loadTicketHistory();
+
+    // Background loader to sync directly with the official GitHub repository for real-time 2026 data
+    const syncRealWorldCupData = async () => {
+      try {
+        const data = await loadOpenFootballDataFromURL("https://raw.githubusercontent.com/openfootball/football.json/master/2026/worldcup.json");
+        if (data && data.matches && data.matches.length > 0) {
+          setCompetitionData(data);
+          console.log("Sincronização com o GitHub efetuada com sucesso!");
+        }
+      } catch (err) {
+        // Safe silent fallback: we already have a robust, updated, high-fidelity offline-first template loaded.
+        console.warn("Sincronização em segundo plano não disponível. Usando modelo local de alta fidelidade.");
+      }
+    };
+
+    syncRealWorldCupData();
   }, []);
 
   // Update dynamic ticket code as predictions change
@@ -189,13 +364,16 @@ export default function App() {
     }
   };
 
+  // --- CORE MATCH ENRICHMENT & CLASSIFICATION ---
+  const enrichedMatches = competitionData.matches;
+
   // Find all unique stages present in the matches, in a friendly order
   const allAvailableStages: string[] = Array.from(
-    new Set(competitionData.matches.map(m => String(m.stage || "Fase de Grupos")))
+    new Set(enrichedMatches.map(m => String(m.stage || "Fase de Grupos")))
   );
   
   // Sort stages
-  const stagePriority = ["Fase de Grupos", "Oitavas de Final", "Quartas de Final", "Semifinais", "Final"];
+  const stagePriority = ["Fase de Grupos", "16 de Final", "Oitavas de Final", "Quartas de Final", "Semifinais", "Disputa de 3º Lugar", "Final"];
   allAvailableStages.sort((a: string, b: string) => {
     const idxA = stagePriority.indexOf(a);
     const idxB = stagePriority.indexOf(b);
@@ -205,68 +383,95 @@ export default function App() {
     return a.localeCompare(b);
   });
 
-  // Calculate cutoffs dynamically
-  const getCutoffForStage = (stageName: string): Date => {
-    const stageMatches = competitionData.matches.filter(m => String(m.stage || "Fase de Grupos") === stageName);
-    if (stageMatches.length === 0) return new Date(0);
-    const sorted = [...stageMatches].sort((a, b) => {
-      const timeStrA = `${a.date}T${a.time}:00-03:00`;
-      const timeStrB = `${b.date}T${b.time}:00-03:00`;
-      const timeA = new Date(timeStrA).getTime();
-      const timeB = new Date(timeStrB).getTime();
-      return timeA - timeB;
-    });
-    const lastMatch = sorted[sorted.length - 1];
-    return new Date(`${lastMatch.date}T${lastMatch.time}:00-03:00`);
-  };
-
-  // Determine active stage automatically
-  const getActiveStageAutomatically = (now: Date): string => {
-    const groupCutoff = getCutoffForStage("Fase de Grupos");
-    const oitavasCutoff = getCutoffForStage("Oitavas de Final");
-    const quartasCutoff = getCutoffForStage("Quartas de Final");
-    const semicutoff = getCutoffForStage("Semifinais");
-
-    if (now >= semicutoff) return "Final";
-    if (now >= quartasCutoff) return "Semifinais";
-    if (now >= oitavasCutoff) return "Quartas de Final";
-    if (now >= groupCutoff) return "Oitavas de Final";
-    return "Fase de Grupos";
-  };
-
-  const selectedStageTab = getActiveStageAutomatically(simulatedDate);
-
-  const isMatchStarted = (match: any, now: Date): boolean => {
+  const isMatchStarted = (match: any, now: Date = simulatedDate): boolean => {
     const matchTimeBRT = new Date(`${match.date}T${match.time}:00-03:00`);
     return now >= matchTimeBRT;
   };
 
-  // Filter matches of the active stage
-  const activeMatches = competitionData.matches.filter(m => {
+  // Automatically manage timeline simulation predictions
+  const handleSimulateTimeline = (targetDate: Date) => {
+    setSimulatedDate(targetDate);
+    try {
+      localStorage.setItem("loto_simulated_date_brt", targetDate.toISOString());
+    } catch (e) {
+      console.warn("Storage inacessível:", e);
+    }
+
+    const newPredictions = { ...predictions };
+    
+    // Clear future predictions (matches that have NOT started relative to targetDate)
+    competitionData.matches.forEach(m => {
+      const matchTimeBRT = new Date(`${m.date}T${m.time}:00-03:00`);
+      if (matchTimeBRT > targetDate) {
+        delete newPredictions[m.id];
+      }
+    });
+
+    // Fill past matches predictions beautifully for simulation testing
+    const sortedMatches = [...competitionData.matches].sort((a, b) => {
+      const ta = new Date(`${a.date}T${a.time}:00-03:00`).getTime();
+      const tb = new Date(`${b.date}T${b.time}:00-03:00`).getTime();
+      return ta - tb;
+    });
+
+    sortedMatches.forEach(m => {
+      const matchTimeBRT = new Date(`${m.date}T${m.time}:00-03:00`);
+      if (targetDate >= matchTimeBRT) {
+        if (!newPredictions[m.id] || newPredictions[m.id].score1 === "" || newPredictions[m.id].score2 === "") {
+          const tieAllowed = m.stage === "Fase de Grupos";
+          let s1 = 0;
+          let s2 = 0;
+          if (tieAllowed) {
+            const rand = Math.random();
+            if (rand < 0.25) { s1 = 1; s2 = 1; }
+            else if (rand < 0.5) { s1 = 0; s2 = 0; }
+            else if (rand < 0.75) { s1 = 2; s2 = 1; }
+            else { s1 = 1; s2 = 2; }
+          } else {
+            s1 = Math.floor(Math.random() * 3) + 1;
+            s2 = Math.floor(Math.random() * 3);
+            if (s1 === s2) s1 += 1;
+          }
+          newPredictions[m.id] = {
+            score1: String(s1),
+            score2: String(s2)
+          };
+        }
+      }
+    });
+
+    setPredictions(newPredictions);
+  };
+
+  // Filter matches of the active stage (only R1 matches for 'Fase de Grupos' tab)
+  const activeMatches = enrichedMatches.filter(m => {
     const stage = m.stage || "Fase de Grupos";
-    return stage === selectedStageTab;
+    if (stage !== selectedStageTab) return false;
+    // For Fase de Grupos, separate 1ª Rodada from 2ª Rodada
+    if (selectedStageTab === "Fase de Grupos") {
+      const isSecondRound = m.id.includes("-2r");
+      return !isSecondRound;
+    }
+    return true;
   });
 
-  // Find dynamic 2nd round matches if any of the active matches have started
-  const startedMatchesInActive = activeMatches.filter(m => isMatchStarted(m, simulatedDate));
-  const startedTeamsSet = new Set<string>();
-  startedMatchesInActive.forEach(m => {
-    startedTeamsSet.add(m.team1);
-    startedTeamsSet.add(m.team2);
-  });
+  // Calculate if any match from R1 has started to release the second round
+  const hasR1Started = enrichedMatches.some(m => 
+    !m.id.includes("-2r") && 
+    (m.stage || "Fase de Grupos") === "Fase de Grupos" && 
+    isMatchStarted(m)
+  );
 
-  const secondRoundMatchesToShow = groupStageSecondRoundMatches.filter(m => {
-    if (selectedStageTab !== "Fase de Grupos") return false;
-    return startedTeamsSet.has(m.team1) || startedTeamsSet.has(m.team2);
-  });
+  // Second round matches are released only if R1 has started or if user is simulating R2/later stages
+  const secondRoundMatchesToShow = selectedStageTab === "Fase de Grupos" && hasR1Started
+    ? enrichedMatches.filter(m => m.id.includes("-2r"))
+    : [];
 
   // Pre-fill fields or trigger random results "Surpresinha" for active matches
   const handleSurpresinha = () => {
     const newPredictions = { ...predictions };
-    const allMatchesToFill = [...activeMatches, ...secondRoundMatchesToShow];
-    
-    allMatchesToFill.forEach(match => {
-      if (isMatchStarted(match, simulatedDate)) return; // Skip started matches
+    activeMatches.forEach(match => {
+      if (isMatchStarted(match)) return; // Skip started matches
 
       const rollScore = () => {
         const rand = Math.random();
@@ -296,9 +501,8 @@ export default function App() {
 
     setFullName("");
     const newPredictions = { ...predictions };
-    const allMatchesToClear = [...activeMatches, ...secondRoundMatchesToShow];
-    allMatchesToClear.forEach(m => {
-      if (!isMatchStarted(m, simulatedDate)) {
+    activeMatches.forEach(m => {
+      if (!isMatchStarted(m)) {
         delete newPredictions[m.id];
       }
     });
@@ -333,10 +537,7 @@ export default function App() {
     }
 
     // Checking if all matches that are NOT started have predictions
-    const editableMatches = [
-      ...activeMatches.filter(m => !isMatchStarted(m, simulatedDate)),
-      ...secondRoundMatchesToShow.filter(m => !isMatchStarted(m, simulatedDate))
-    ];
+    const editableMatches = activeMatches.filter(m => !isMatchStarted(m));
 
     const missingPreds = editableMatches.filter(
       match => !predictions[match.id] || 
@@ -345,24 +546,36 @@ export default function App() {
     );
 
     if (missingPreds.length > 0) {
-      setValidationError(`Preencha todos os resultados! Ainda faltam definir os placares para ${missingPreds.length} jogo(s).`);
+      setValidationError(`Preencha todos os resultados da fase ativa! Ainda faltam definir os placares para ${missingPreds.length} jogo(s).`);
       return;
     }
 
     setValidationError(null);
 
-    // Combine predictions for active round and second round
+    // Combine predictions for active round and second round (optional previews are only sent if predicted!)
     const listPredictions: UserPrediction[] = [
-      ...activeMatches,
+      ...activeMatches.map(m => {
+        const pred = predictions[m.id] || { score1: "", score2: "" };
+        return {
+          matchId: m.id,
+          score1: pred.score1 !== "" ? pred.score1 : "0",
+          score2: pred.score2 !== "" ? pred.score2 : "0"
+        };
+      }),
       ...secondRoundMatchesToShow
-    ].map(m => {
-      const pred = predictions[m.id] || { score1: "", score2: "" };
-      return {
-        matchId: m.id,
-        score1: pred.score1 !== "" ? pred.score1 : "0",
-        score2: pred.score2 !== "" ? pred.score2 : "0"
-      };
-    });
+        .filter(m => {
+          const pred = predictions[m.id];
+          return pred && pred.score1 !== "" && pred.score2 !== "";
+        })
+        .map(m => {
+          const pred = predictions[m.id]!;
+          return {
+            matchId: m.id,
+            score1: pred.score1,
+            score2: pred.score2
+          };
+        })
+    ];
 
     const ticketValue = {
       fullName,
@@ -391,7 +604,7 @@ export default function App() {
       emissionDate,
       ticketCode,
       secondRoundMatches: secondRoundMatchesToShow,
-      simulatedDateStr: simulatedDate.toISOString()
+      simulatedDateStr: new Date().toISOString()
     });
 
     const encodedText = encodeURIComponent(formattedMsg);
@@ -417,10 +630,23 @@ export default function App() {
 
     try {
       const data = await loadOpenFootballDataFromURL(customJsonUrl.trim());
+      
+      // Perform FIFA 2026 validation check on the loaded JSON file
+      const report = validateOpenFootballDataFor2026(data);
+      if (!report.isFullyCompliant) {
+        const warnings = report.checks
+          .filter(c => c.status === "warning")
+          .map(c => `• ${c.message}`)
+          .join("\n");
+        alert(`⚠️ Alerta de Incompatibilidade FIFA 2026:\n\n${warnings}\n\nPor favor, certifique-se de que os dados carregados estão com a estrutura correta.`);
+        setApiErrorMsg(`Incompatibilidade FIFA 2026: ${report.summary}`);
+      } else {
+        setApiSuccessMsg(`Sucesso! Carregado: "${data.competition}" - "${data.round}" com ${data.matches.length} partidas. Todos os critérios FIFA 2026 estão conformes!`);
+      }
+
       setCompetitionData(data);
       // Clean previous predictions to accommodate new teams
       setPredictions({});
-      setApiSuccessMsg(`Sucesso! Carregado: "${data.competition}" - "${data.round}" com ${data.matches.length} partidas.`);
     } catch (err: any) {
       setApiErrorMsg(`Falha ao ler JSON: ${err.message || err}`);
     } finally {
@@ -485,7 +711,7 @@ export default function App() {
         <div 
           onClick={handleTrophyClick}
           className="inline-flex flex-col items-center justify-center bg-emerald-900/80 border border-emerald-700 px-5 py-2.5 rounded-2xl mb-3 backdrop-blur-xs shadow-lg cursor-pointer select-none active:scale-95 transition-transform"
-          title="Clique para ativar o painel de testes"
+          title="Clique 10 vezes para ativar/desativar o painel de testes"
         >
           <div className="flex items-center space-x-2.5">
             <Trophy className="h-6 w-6 text-amber-400 animate-bounce shrink-0" />
@@ -503,11 +729,11 @@ export default function App() {
       {/* MAIN CONTAINER: Classic retro sports lottery ticket (LOTECA RECEIPT) */}
       <main className="relative z-10 w-full max-w-md mx-auto flex-1 flex flex-col justify-center">
         
-        {/* Subtly Elegant Clock & Testing Simulator Controller with Easter Egg */}
-        <div 
-          className="w-full bg-neutral-900/85 border border-emerald-700/60 rounded-lg p-2.5 backdrop-blur-xs text-xs space-y-2 mb-3 shadow-xl cursor-default select-none"
-          title="Horário Oficial Brasília"
-        >
+        {/* Subtly Elegant Clock & Live Real-Time Timekeeper */}
+        {showSimulator && (
+          <div 
+            className="w-full bg-neutral-900/85 border border-emerald-700/60 rounded-lg p-3 backdrop-blur-xs text-xs mb-3 shadow-xl select-none"
+          >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-1.5 text-amber-300">
               <Clock className="h-3.5 w-3.5 animate-pulse shrink-0" />
@@ -517,140 +743,214 @@ export default function App() {
               {simulatedDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })} BRT
             </span>
           </div>
-          
+
           {showSimulator && (
-            <div className="border-t border-emerald-800/40 pt-1.5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex flex-wrap gap-1 items-center justify-start text-[8px]">
-                <span className="text-neutral-400 font-bold mr-1 block">Testar Fluxo:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date("2026-05-20T12:00:00-03:00");
-                    setSimulatedDate(d);
-                    localStorage.setItem("loto_simulated_date_brt", d.toISOString());
-                  }}
-                  className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                    selectedStageTab === "Fase de Grupos" && startedMatchesInActive.length === 0
-                      ? "bg-emerald-700 text-white border-amber-400 font-bold"
-                      : "bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24]"
-                  }`}
-                >
-                  Antes do Início
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date("2026-06-11T16:00:00-03:00");
-                    setSimulatedDate(d);
-                    localStorage.setItem("loto_simulated_date_brt", d.toISOString());
-                  }}
-                  className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                    selectedStageTab === "Fase de Grupos" && startedMatchesInActive.length > 0
-                      ? "bg-emerald-700 text-white border-amber-400 font-bold"
-                      : "bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24]"
-                  }`}
-                >
-                  México x África (Iniciado 🏁)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date("2026-06-28T12:00:00-03:00");
-                    setSimulatedDate(d);
-                    localStorage.setItem("loto_simulated_date_brt", d.toISOString());
-                  }}
-                  className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                    selectedStageTab === "Oitavas de Final"
-                      ? "bg-emerald-700 text-white border-amber-400 font-bold"
-                      : "bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24]"
-                  }`}
-                >
-                  Oitavas de Final
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date("2026-07-06T12:00:00-03:00");
-                    setSimulatedDate(d);
-                    localStorage.setItem("loto_simulated_date_brt", d.toISOString());
-                  }}
-                  className={`px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                    selectedStageTab === "Quartas de Final"
-                      ? "bg-emerald-700 text-white border-amber-400 font-bold"
-                      : "bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24]"
-                  }`}
-                >
-                  Quartas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.removeItem("loto_simulated_date_brt");
-                    localStorage.removeItem("loto_debug_active");
-                    setShowSimulator(false);
-                    setSimulatedDate(new Date());
-                  }}
-                  className="px-1.5 py-0.5 rounded border bg-red-900/60 text-red-100 border-red-800/80 hover:bg-red-950/85 transition-colors ml-auto cursor-pointer font-bold"
-                  title="Restaurar relógio em tempo real"
-                >
-                  Resetar Relógio ⏰
-                </button>
-              </div>
-
-              {/* Maintenance Tools and Data Carga (Modo Manutenção) */}
-              <div className="mt-2.5 pt-2 border-t border-emerald-800/40 flex flex-col space-y-2">
-                <div className="flex items-center justify-between text-[9px] text-[#f5be18] font-bold">
-                  <span>⚙️ Painel de Manutenção & Carga de Dados (JSON / API)</span>
-                </div>
+            <div className="border-t border-emerald-800/40 pt-2.5 mt-2.5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-col space-y-1.5">
+                <span className="text-amber-300 font-bold text-[9px] block">⏱️ SIMULAR CRONOGRAMA DO MUNDIAL (PALPITES DE TESTE):</span>
                 
-                <form onSubmit={handleFetchExternalJson} className="flex gap-1.5 items-center">
-                  <input
-                    type="url"
-                    placeholder="https://raw.githubusercontent.com/.../soccer.json"
-                    value={customJsonUrl}
-                    onChange={(e) => setCustomJsonUrl(e.target.value)}
-                    className="flex-1 bg-neutral-950 text-[9px] text-emerald-100 border border-emerald-800/80 rounded px-1.5 py-0.5 focus:outline-none placeholder-emerald-800/60"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isFetchingUrl}
-                    className="px-2 py-0.5 rounded bg-emerald-700 text-white font-bold hover:bg-emerald-600 disabled:opacity-50 text-[9px] whitespace-nowrap cursor-pointer"
-                  >
-                    {isFetchingUrl ? "Carregando..." : "Carregar"}
-                  </button>
-                </form>
-
-                {apiErrorMsg && (
-                  <div className="text-[8px] text-red-400 bg-red-950/40 p-1 rounded border border-red-900/60 leading-tight">
-                    {apiErrorMsg}
-                  </div>
-                )}
-                {apiSuccessMsg && (
-                  <div className="text-[8px] text-emerald-400 bg-emerald-950/40 p-1 rounded border border-emerald-900/60 leading-tight">
-                    {apiSuccessMsg}
-                  </div>
-                )}
-
-                <div className="flex gap-1 text-[8px]">
+                <div className="flex flex-wrap gap-1 items-center justify-start text-[8px]">
                   <button
                     type="button"
-                    onClick={handleRestoreDefaultModel}
-                    className="px-1.5 py-0.5 rounded border border-emerald-800/60 bg-[#143e24]/60 text-emerald-300 hover:bg-[#143e24] cursor-pointer"
+                    onClick={() => {
+                      const d = new Date("2026-06-11T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Todo o bolão aberto para palpitar a 1ª rodada do Mundial"
                   >
-                    Restaurar Copa 2026 🇧🇷
+                    1. Grupos (R1 Aberta)
                   </button>
+
                   <button
                     type="button"
-                    onClick={handleWipeValidationStorage}
-                    className="px-1.5 py-0.5 rounded border border-red-800/50 bg-red-950/40 text-red-300 hover:bg-red-900/40 cursor-pointer"
+                    onClick={() => {
+                      const d = new Date("2026-06-11T16:30:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="México x África começa, disparando a liberação dos jogos da 2ª rodada!"
                   >
-                    Limpar Histórico Local 🧹
+                    2. R1 Jogo Executando 🏁
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-06-18T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="R1 totalmente jogada e fechada. R2 de grupos aberta para palpites!"
+                  >
+                    3. Grupos (R2 Aberta)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-06-29T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Fase de Grupos concluída. Chaveamento de Round of 32 (16 de Final) liberado!"
+                  >
+                    4. 16 de Final (R32)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-07-04T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Round of 32 concluído. Chaveamento de Oitavas liberado!"
+                  >
+                    5. Oitavas de Final
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-07-09T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Oitavas concluídas. Quartas preenchidas com os vencedores de Oitavas!"
+                  >
+                    6. Quartas de Final
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-07-14T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Quartas concluídas. Semifinais preenchidas!"
+                  >
+                    7. Semifinais
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-07-18T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Semifinais concluídas. Palpite da Decisão do Terceiro Lugar liberado!"
+                  >
+                    8. 3º Lugar 🥉
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date("2026-07-19T12:00:00-03:00");
+                      handleSimulateTimeline(d);
+                    }}
+                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="A grande final do campeonato!"
+                  >
+                    9. Grande Final 🏆
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem("loto_simulated_date_brt");
+                        localStorage.removeItem("loto_debug_active");
+                      } catch (e) {}
+                      setShowSimulator(false);
+                      setSimulatedDate(new Date());
+                    }}
+                    className="px-2 py-0.5 rounded border bg-red-900/60 text-red-100 border-red-800/80 hover:bg-red-950/85 transition-colors ml-auto cursor-pointer font-bold active:scale-95"
+                    title="Restaurar relógio para o tempo real"
+                  >
+                    Restaurar Tempo Real ⏰
                   </button>
                 </div>
               </div>
             </div>
           )}
+
+          {/* Clean Stage Selection Tabs */}
+          <div className="mt-3 border-t border-emerald-800/40 pt-2.5">
+            <span className="text-neutral-400 font-bold text-[9px] block mb-1.5 uppercase tracking-wider">SELECIONE A FASE PARA PALPITAR:</span>
+            <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap text-[9.5px]">
+              {["Fase de Grupos", "16 de Final", "Oitavas de Final", "Quartas de Final", "Semifinais", "Disputa de 3º Lugar", "Final"].map((stg) => {
+                const label = stg === "16 de Final" ? "Round of 32" : (stg === "Oitavas de Final" ? "Oitavas" : (stg === "Quartas de Final" ? "Quartas" : (stg === "Fase de Grupos" ? "Grupos" : stg)));
+                const isActive = selectedStageTab === stg;
+                return (
+                  <button
+                    key={stg}
+                    type="button"
+                    id={`tab-${stg.replace(/\s+/g, "-").toLowerCase()}`}
+                    onClick={() => setSelectedStageTab(stg)}
+                    className={`px-2 py-1 rounded border text-center transition-all cursor-pointer font-medium ${
+                      isActive
+                        ? "bg-amber-600 text-white border-amber-300 font-bold shadow-md shadow-amber-950/40 scale-102"
+                        : "bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] hover:text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Clean External JSON API Sync bar */}
+          <div className="mt-2.5 pt-2 border-t border-emerald-800/40 flex items-center justify-between gap-2">
+            <span className="text-neutral-400 font-bold text-[9px] uppercase">CARGA EXTERNA (OPENFOOTBALL JSON):</span>
+            <button
+              type="button"
+              id="sync-api-button"
+              disabled={isFetchingUrl}
+              onClick={async (e) => {
+                e.preventDefault();
+                setIsFetchingUrl(true);
+                setApiErrorMsg(null);
+                setApiSuccessMsg(null);
+                try {
+                  const data = await loadOpenFootballDataFromURL(customJsonUrl);
+                  const report = validateOpenFootballDataFor2026(data);
+                  if (!report.isFullyCompliant) {
+                    const warnings = report.checks
+                      .filter(c => c.status === "warning")
+                      .map(c => `• ${c.message}`)
+                      .join("\n");
+                    alert(`⚠️ Alerta de Incompatibilidade FIFA 2026:\n\n${warnings}\n\nPor favor, garanta que os dados importados estão corretos.`);
+                    setApiErrorMsg(`Incompatibilidade FIFA 2026: ${report.summary}`);
+                  } else {
+                    setApiSuccessMsg(`Sincronizado! "${data.competition}" configurada.`);
+                  }
+                  setCompetitionData(data);
+                  setPredictions({});
+                } catch (err: any) {
+                  setApiErrorMsg(`Erro de rede / CORS: '${err.message || err}'`);
+                } finally {
+                  setIsFetchingUrl(false);
+                }
+              }}
+              className="px-2 py-0.5 rounded bg-emerald-800 hover:bg-emerald-700 border border-emerald-600 font-mono text-[8px] text-white cursor-pointer active:scale-95 transition-all text-right shrink-0"
+            >
+              {isFetchingUrl ? "🔄 Conectando..." : "🔄 Atualizar via GitHub"}
+            </button>
+          </div>
+          
+          {(apiErrorMsg || apiSuccessMsg) && (
+            <div className="mt-2 text-[8px] leading-relaxed p-1.5 rounded border">
+              {apiErrorMsg && <p className="text-red-400 bg-red-950/20 border-red-900/40">{apiErrorMsg}</p>}
+              {apiSuccessMsg && <p className="text-emerald-400 bg-emerald-950/20 border-emerald-900/40">{apiSuccessMsg}</p>}
+            </div>
+          )}
         </div>
+      )}
 
         {/* Teeth upper row decoration */}
         <div className="serrated-edge-top" />
@@ -755,108 +1055,369 @@ export default function App() {
                   </div>
 
                   <div className="space-y-4">
-                    {activeMatches.map((match) => {
-                      const idx = competitionData.matches.findIndex(m => m.id === match.id);
-                      const prediction = predictions[match.id] || { score1: "", score2: "" };
-                      const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
-                      const isStarted = isMatchStarted(match, simulatedDate);
+                    {(() => {
+                      if (selectedStageTab !== "Fase de Grupos") {
+                        // Bracket Columns configurations
+                        const bracketColumns = [
+                          { id: "16_avos", key: "16 de final", title: "16 de Final" },
+                          { id: "oitavas", key: "8 de final", title: "Oitavas" },
+                          { id: "quartas", key: "4 de final", title: "Quartas" },
+                          { id: "semis", key: "semi", title: "Semifinais" },
+                          { id: "terceiro", key: "3o lugar", title: "3º Lugar 🥉" },
+                          { id: "final", key: "final", title: "Grande Final 🏆" }
+                        ];
 
-                      return (
-                        <div key={match.id} className="space-y-1">
-                          {/* Match Header metadata */}
-                          <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
-                            <span className="font-bold text-[#143e24]">
-                              JOGO #{String(idx + 1).padStart(2, "0")} {match.group ? `(${match.group})` : ""}
-                            </span>
-                            <span className="flex items-center space-x-1">
-                              <span>{match.date} • {match.time} BR</span>
-                              {match.stadium && (
-                                <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
-                              )}
-                            </span>
+                        const matchStageFilter = (m: Match, s: string) => {
+                          const mStage = String(m.stage || "").toLowerCase();
+                          const query = s.toLowerCase();
+                          if (query === "16 de final") {
+                            return mStage === "16 de final" || mStage.includes("32") || mStage.includes("16 avos") || mStage.includes("dezesseis");
+                          }
+                          if (query === "8 de final") {
+                            return mStage === "oitavas de final" || mStage.includes("oitav") || mStage.includes("r16") || mStage.includes("round of 16") || mStage.includes("1/8");
+                          }
+                          if (query === "4 de final") {
+                            return mStage === "quartas de final" || mStage.includes("quartas") || mStage.includes("quarter") || mStage.includes("1/4");
+                          }
+                          if (query === "semi") {
+                            return mStage === "semifinais" || mStage.includes("semi");
+                          }
+                          if (query === "3o lugar") {
+                            return mStage === "disputa de 3º lugar" || mStage.includes("3") || mStage.includes("terceiro") || mStage.includes("bronze");
+                          }
+                          if (query === "final") {
+                            return mStage === "final" || mStage === "f1" || (mStage.includes("final") && !mStage.includes("16") && !mStage.includes("oitav") && !mStage.includes("quartas") && !mStage.includes("semi") && !mStage.includes("3o") && !mStage.includes("3º") && !mStage.includes("terceiro"));
+                          }
+                          return false;
+                        };
+
+                        const columnsWithMatches = bracketColumns.map(col => {
+                          const colsMatches = enrichedMatches.filter(m => matchStageFilter(m, col.key));
+                          return { ...col, matches: colsMatches };
+                        }).filter(col => col.matches.length > 0);
+
+                        return (
+                          <div className="w-full space-y-2">
+                            <p className="text-[10px] text-neutral-500 font-mono italic text-center select-none animate-pulse">
+                              ↔️ Deslize para o lado para navegar no Chaveamento (Mata-Mata)
+                            </p>
+                            
+                            <div 
+                              ref={bracketContainerRef}
+                              className="flex gap-x-4 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scrollbar-hide scroll-smooth w-full"
+                            >
+                              {columnsWithMatches.map((col) => {
+                                const isColActive = col.matches.some(m => m.stage === selectedStageTab);
+                                return (
+                                  <div 
+                                    key={col.id} 
+                                    id={`col-${col.id}`}
+                                    className={`min-w-[85%] sm:min-w-[325px] shrink-0 flex flex-col snap-center p-3.5 rounded-2xl border transition-all duration-300 relative ${
+                                      isColActive 
+                                        ? "bg-amber-50/50 border-amber-500 ring-2 ring-amber-400/35 shadow-md shadow-amber-950/5" 
+                                        : "bg-[#fbf9f2]/75 border-neutral-300/80 opacity-85 hover:opacity-100"
+                                    }`}
+                                  >
+                                    {/* Column Stage Title Card */}
+                                    <div className="sticky top-0 bg-[#ebdcb9] border-b-2 border-emerald-800 mb-2 py-1 px-2.5 rounded-lg text-center font-display font-extrabold text-emerald-950 text-[10px] tracking-wider select-none uppercase">
+                                      {col.title}
+                                    </div>
+
+                                    {/* Matches distributed symmetrically with flex-justify-around */}
+                                    <div className="flex-1 flex flex-col justify-around gap-y-3 min-h-[480px] py-1">
+                                      {col.matches.map((match) => {
+                                        const idx = competitionData.matches.findIndex(m => m.id === match.id);
+                                        const prediction = predictions[match.id] || { score1: "", score2: "" };
+                                        const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
+                                        const isStarted = isMatchStarted(match);
+                                        const isActiveStage = match.stage === selectedStageTab;
+
+                                        return (
+                                          <div 
+                                            key={match.id} 
+                                            className={`p-2 rounded-xl border bg-white shadow-xs transition-all relative ${
+                                              isActiveStage 
+                                                ? isRowFilled 
+                                                  ? "border-amber-500 ring-2 ring-amber-400/35" 
+                                                  : "border-neutral-400 hover:border-emerald-600 shadow-sm"
+                                                : "border-neutral-200 bg-neutral-100/60 opacity-80"
+                                            }`}
+                                          >
+                                            {/* Micro Header */}
+                                            <div className="flex items-center justify-between text-[7px] text-neutral-500 font-mono mb-1 pb-1 border-b border-dashed border-neutral-200">
+                                              <span className="font-bold text-emerald-800">🚀 JOGO #{String(idx + 1).padStart(2, "0")}</span>
+                                              <span>{match.date} • {match.time}</span>
+                                            </div>
+
+                                            {/* Teams Stacked */}
+                                            <div className="space-y-1">
+                                              {/* Team 1 */}
+                                              <div className="flex items-center justify-between">
+                                                <div 
+                                                  onClick={() => setSelectedTradingCardTeam(match.team1)}
+                                                  className="flex items-center space-x-1 hover:text-amber-600 max-w-[150px] text-left cursor-pointer transition-all select-none group/team"
+                                                  title={`Clique para ver a Figurinha de ${match.team1}`}
+                                                >
+                                                  <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center border border-neutral-200 bg-neutral-50 shrink-0 shadow-2xs group-hover/team:scale-110 transition-transform">
+                                                    <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                                                  </div>
+                                                  <span className={`text-[9px] font-black tracking-tight text-neutral-900 group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
+                                                    {match.team1}
+                                                  </span>
+                                                </div>
+
+                                                {isStarted ? (
+                                                  <span className="text-[9px] font-mono font-bold text-neutral-600 bg-neutral-200/50 px-1 py-0.5 rounded leading-none shrink-0 min-w-[14px] text-center">
+                                                    {prediction.score1 !== "" ? prediction.score1 : "-"}
+                                                  </span>
+                                                ) : (
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="99"
+                                                    inputMode="numeric"
+                                                    placeholder="0"
+                                                    disabled={isStarted}
+                                                    value={prediction.score1}
+                                                    onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
+                                                    className="w-5 h-4.5 bg-[#faf6eb] border border-neutral-300 rounded text-center font-black text-[9px] text-[#032110] focus:outline-none focus:ring-1 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                                  />
+                                                )}
+                                              </div>
+
+                                              {/* Team 2 */}
+                                              <div className="flex items-center justify-between">
+                                                <div 
+                                                  onClick={() => setSelectedTradingCardTeam(match.team2)}
+                                                  className="flex items-center space-x-1 hover:text-amber-600 max-w-[150px] text-left cursor-pointer transition-all select-none group/team"
+                                                  title={`Clique para ver a Figurinha de ${match.team2}`}
+                                                >
+                                                  <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center border border-neutral-200 bg-neutral-50 shrink-0 shadow-2xs group-hover/team:scale-110 transition-transform">
+                                                    <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                                  </div>
+                                                  <span className={`text-[9px] font-black tracking-tight text-neutral-900 group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
+                                                    {match.team2}
+                                                  </span>
+                                                </div>
+
+                                                {isStarted ? (
+                                                  <span className="text-[9px] font-mono font-bold text-neutral-600 bg-neutral-200/50 px-1 py-0.5 rounded leading-none shrink-0 min-w-[14px] text-center">
+                                                    {prediction.score2 !== "" ? prediction.score2 : "-"}
+                                                  </span>
+                                                ) : (
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="99"
+                                                    inputMode="numeric"
+                                                    placeholder="0"
+                                                    disabled={isStarted}
+                                                    value={prediction.score2}
+                                                    onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
+                                                    className="w-5 h-4.5 bg-[#faf6eb] border border-neutral-300 rounded text-center font-black text-[9px] text-[#032110] focus:outline-none focus:ring-1 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                                  />
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Micro Footer */}
+                                            {match.stadium && (
+                                              <div className="text-[6px] text-neutral-400 font-mono mt-1 pt-0.5 border-t border-dashed border-neutral-100 flex items-center justify-between">
+                                                <span className="truncate max-w-[140px]">{match.stadium}</span>
+                                                {isActiveStage && (
+                                                  <span className="text-[5px] bg-red-600 text-white font-extrabold rounded px-1 scale-90 select-none uppercase">ATIVO</span>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Bullet Pagination Indicators for Match Stages */}
+                            <div className="flex flex-col items-center justify-center space-y-1 mt-1 select-none">
+                              <div className="flex items-center space-x-1.5 py-1">
+                                {columnsWithMatches.map((col) => {
+                                  const isColActive = col.matches.some(m => m.stage === selectedStageTab);
+                                  const colTabName = 
+                                    col.id === "16_avos" ? "16 de Final" :
+                                    col.id === "oitavas" ? "Oitavas de Final" :
+                                    col.id === "quartas" ? "Quartas de Final" :
+                                    col.id === "semis" ? "Semifinais" :
+                                    col.id === "terceiro" ? "Disputa de 3º Lugar" :
+                                    "Final";
+
+                                  return (
+                                    <button
+                                      key={`dot-${col.id}`}
+                                      type="button"
+                                      onClick={() => setSelectedStageTab(colTabName)}
+                                      className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                                        isColActive 
+                                          ? "w-5.5 bg-amber-500 shadow-xs shadow-amber-700/30" 
+                                          : "w-2 bg-neutral-300 hover:bg-neutral-400"
+                                      }`}
+                                      title={`Ir para ${col.title}`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                              <span className="text-[8px] font-mono font-black text-amber-700 uppercase tracking-wider">
+                                {columnsWithMatches.findIndex(col => col.matches.some(m => m.stage === selectedStageTab)) !== -1 
+                                  ? `Fase Selecionada: ${columnsWithMatches.find(col => col.matches.some(m => m.stage === selectedStageTab))?.title}`
+                                  : "Arraste para o Lado"
+                                }
+                              </span>
+                            </div>
                           </div>
+                        );
+                      }
 
-                          {/* Beautiful Rounded Capsule Row */}
-                          <div 
-                            className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
-                              isStarted 
-                                ? "bg-neutral-100/80 border-neutral-200 opacity-80"
-                                : isRowFilled 
-                                  ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
-                                  : "border-neutral-300 hover:border-neutral-400"
-                            }`}
+                      // Group matches of active stage
+                      const groups: { groupName: string; matches: any[] }[] = [];
+                      activeMatches.forEach(match => {
+                        const gName = match.group || "Partidas";
+                        let exist = groups.find(g => g.groupName === gName);
+                        if (!exist) {
+                          exist = { groupName: gName, matches: [] };
+                          groups.push(exist);
+                        }
+                        exist.matches.push(match);
+                      });
+
+                      return groups.map((grpItem) => {
+                        const colors = getGroupColors(grpItem.groupName);
+                        return (
+                          <div
+                            key={grpItem.groupName}
+                            className={`p-3.5 rounded-2xl border-2 ${colors.border} ${colors.bg} space-y-3 shadow-xs relative transition-all bg-white/40 backdrop-blur-xs`}
                           >
-                            {/* Left team: Flag + Text */}
-                            <div 
-                              onClick={() => setSelectedTradingCardTeam(match.team1)}
-                              className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
-                              title={`Clique para ver a Figurinha de ${match.team1}`}
-                            >
-                              <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
-                                <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                            <div className="flex items-center justify-between pb-1 border-b border-dashed border-neutral-300/80">
+                              <div className="flex items-center space-x-1.5 pb-0.5">
+                                <span className={`w-2 h-2 rounded-full ${colors.dot}`}></span>
+                                <span className={`text-[11px] font-black uppercase tracking-wider font-display ${colors.text}`}>
+                                  {grpItem.groupName}
+                                </span>
                               </div>
-                              <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
-                                {match.team1}
+                              <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider font-mono ${colors.badge}`}>
+                                Grupo
                               </span>
                             </div>
 
-                            {/* Center Section: score pill */}
-                            {isStarted ? (
-                                <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
-                                  <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
-                                    INICIADO
-                                  </span>
-                                  {(prediction.score1 !== "" && prediction.score2 !== "") ? (
-                                    <span className="text-[11px] font-black text-neutral-800 tracking-wider">
-                                      {prediction.score1}-{prediction.score2}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
-                                  )}
-                                </div>
-                            ) : (
-                              <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="99"
-                                  inputMode="numeric"
-                                  placeholder="0"
-                                  value={prediction.score1}
-                                  onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
-                                  className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
-                                />
-                                <span className="text-[10px] font-black text-[#032110] select-none">-</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="99"
-                                  inputMode="numeric"
-                                  placeholder="0"
-                                  value={prediction.score2}
-                                  onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
-                                  className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
-                                />
-                              </div>
-                            )}
+                            <div className="space-y-4">
+                              {grpItem.matches.map((match) => {
+                                const idx = competitionData.matches.findIndex(m => m.id === match.id);
+                                const prediction = predictions[match.id] || { score1: "", score2: "" };
+                                const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
+                                const isStarted = isMatchStarted(match);
 
-                            {/* Right team: Text + Flag */}
-                            <div 
-                              onClick={() => setSelectedTradingCardTeam(match.team2)}
-                              className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
-                              title={`Clique para ver a Figurinha de ${match.team2}`}
-                            >
-                              <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
-                                {match.team2}
-                              </span>
-                              <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
-                                <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
-                              </div>
+                                return (
+                                  <div key={match.id} className="space-y-1">
+                                    {/* Match Header metadata */}
+                                    <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
+                                      <span className="font-bold text-[#143e24]">
+                                        JOGO #{String(idx + 1).padStart(2, "0")}
+                                      </span>
+                                      <span className="flex items-center space-x-1">
+                                        <span>{match.date} • {match.time} BR</span>
+                                        {match.stadium && (
+                                          <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
+                                        )}
+                                      </span>
+                                    </div>
+
+                                    {/* Beautiful Rounded Capsule Row */}
+                                    <div 
+                                      className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
+                                        isStarted 
+                                          ? "bg-neutral-100/80 border-neutral-200 opacity-80"
+                                          : isRowFilled 
+                                            ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
+                                            : "border-neutral-300 hover:border-neutral-400"
+                                      }`}
+                                    >
+                                      {/* Left team: Flag + Text */}
+                                      <div 
+                                        onClick={() => setSelectedTradingCardTeam(match.team1)}
+                                        className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                        title={`Clique para ver a Figurinha de ${match.team1}`}
+                                      >
+                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                          <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                                        </div>
+                                        <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
+                                          {match.team1}
+                                        </span>
+                                      </div>
+
+                                      {/* Center Section: score pill */}
+                                      {isStarted ? (
+                                        <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
+                                          <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
+                                            INICIADO
+                                          </span>
+                                          {(prediction.score1 !== "" && prediction.score2 !== "") ? (
+                                            <span className="text-[11px] font-black text-neutral-800 tracking-wider">
+                                              {prediction.score1}-{prediction.score2}
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max="99"
+                                            inputMode="numeric"
+                                            placeholder="0"
+                                            value={prediction.score1}
+                                            onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
+                                            className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                          />
+                                          <span className="text-[10px] font-black text-[#032110] select-none">-</span>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            max="99"
+                                            inputMode="numeric"
+                                            placeholder="0"
+                                            value={prediction.score2}
+                                            onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
+                                            className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                          />
+                                        </div>
+                                      )}
+
+                                      {/* Right team: Text + Flag */}
+                                      <div 
+                                        onClick={() => setSelectedTradingCardTeam(match.team2)}
+                                        className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                        title={`Clique para ver a Figurinha de ${match.team2}`}
+                                      >
+                                        <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
+                                          {match.team2}
+                                        </span>
+                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                          <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 
@@ -869,107 +1430,146 @@ export default function App() {
                     </div>
 
                     <div className="space-y-4">
-                      {secondRoundMatchesToShow.map((match, sIdx) => {
-                        const prediction = predictions[match.id] || { score1: "", score2: "" };
-                        const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
-                        const isStarted = isMatchStarted(match, simulatedDate);
+                      {(() => {
+                        // Group secondRoundMatchesToShow by group Name to show group highlights "destaque de grupos nas prévias"
+                        const nextGroups: { groupName: string; matches: typeof secondRoundMatchesToShow }[] = [];
+                        secondRoundMatchesToShow.forEach(match => {
+                          const gName = match.group || "Fase de Grupos";
+                          let exist = nextGroups.find(g => g.groupName === gName);
+                          if (!exist) {
+                            exist = { groupName: gName, matches: [] };
+                            nextGroups.push(exist);
+                          }
+                          exist.matches.push(match);
+                        });
 
-                        return (
-                          <div key={match.id} className="space-y-1">
-                            {/* Match Header metadata */}
-                            <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
-                              <span className="font-bold text-emerald-800">
-                                JOGO SEGUINTE #{String(sIdx + 1).padStart(2, "0")} ({match.group})
-                              </span>
-                              <span className="flex items-center space-x-1">
-                                <span>{match.date} • {match.time} BR</span>
-                                {match.stadium && (
-                                  <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
-                                )}
-                              </span>
-                            </div>
-
-                            {/* Beautiful Rounded Capsule Row */}
-                            <div 
-                              className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
-                                isStarted 
-                                  ? "bg-neutral-100/80 border-neutral-200 opacity-80"
-                                  : isRowFilled 
-                                    ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
-                                    : "border-neutral-300 hover:border-neutral-400"
-                              }`}
+                        return nextGroups.map(grpItem => {
+                          const colors = getGroupColors(grpItem.groupName);
+                          return (
+                            <div
+                              key={"next-" + grpItem.groupName}
+                              className={`p-3.5 rounded-2xl border-2 ${colors.border} ${colors.bg} space-y-3 shadow-xs relative transition-all bg-white/45 backdrop-blur-xs`}
                             >
-                              {/* Left team: Flag + Text */}
-                              <div 
-                                onClick={() => setSelectedTradingCardTeam(match.team1)}
-                                className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
-                                title={`Clique para ver a Figurinha de ${match.team1}`}
-                              >
-                                <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
-                                  <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                              {/* Header for Group inside 2ª Rodada Preview */}
+                              <div className="flex items-center justify-between pb-1 border-b border-dashed border-neutral-300/80">
+                                <div className="flex items-center space-x-1.5 pb-0.5">
+                                  <span className={`w-2 h-2 rounded-full ${colors.dot}`}></span>
+                                  <span className={`text-[11px] font-black uppercase tracking-wider font-display ${colors.text}`}>
+                                    {grpItem.groupName} (PREVISÃO)
+                                  </span>
                                 </div>
-                                <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
-                                  {match.team1}
+                                <span className={`text-[8px] font-bold px-2 py-0.5 rounded-full ${colors.badge}`}>
+                                  Próxima Rodada
                                 </span>
                               </div>
 
-                              {/* Center Section: score pill */}
-                              {isStarted ? (
-                                <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
-                                  <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
-                                    INICIADO
-                                  </span>
-                                  {(prediction.score1 !== "" && prediction.score2 !== "") ? (
-                                    <span className="text-[11px] font-black text-neutral-800 tracking-wider">
-                                      {prediction.score1}-{prediction.score2}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="99"
-                                    inputMode="numeric"
-                                    placeholder="0"
-                                    value={prediction.score1}
-                                    onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
-                                    className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
-                                  />
-                                  <span className="text-[10px] font-black text-[#032110] select-none">-</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="99"
-                                    inputMode="numeric"
-                                    placeholder="0"
-                                    value={prediction.score2}
-                                    onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
-                                    className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
-                                  />
-                                </div>
-                              )}
+                              <div className="space-y-4">
+                                {grpItem.matches.map((match, sIdx) => {
+                                  const prediction = predictions[match.id] || { score1: "", score2: "" };
+                                  const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
+                                  const isStarted = isMatchStarted(match);
 
-                              {/* Right team: Text + Flag */}
-                              <div 
-                                onClick={() => setSelectedTradingCardTeam(match.team2)}
-                                className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
-                                title={`Clique para ver a Figurinha de ${match.team2}`}
-                              >
-                                <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
-                                  {match.team2}
-                                </span>
-                                <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
-                                  <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
-                                </div>
+                                  return (
+                                    <div key={match.id} className="space-y-1">
+                                      {/* Match Header metadata */}
+                                      <div className="flex items-center justify-between text-[8px] text-neutral-550 px-2 font-mono">
+                                        <span className="font-bold text-emerald-850">
+                                          JOGO SEGUINTE #{String(sIdx + 1).padStart(2, "0")}
+                                        </span>
+                                        <span className="flex items-center space-x-1">
+                                          <span>{match.date} • {match.time} BR</span>
+                                          {match.stadium && (
+                                            <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
+                                          )}
+                                        </span>
+                                      </div>
+
+                                      {/* Beautiful Rounded Capsule Row */}
+                                      <div 
+                                        className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
+                                          isStarted 
+                                            ? "bg-neutral-100/80 border-neutral-200 opacity-80"
+                                            : isRowFilled 
+                                              ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
+                                              : "border-neutral-300 hover:border-neutral-400"
+                                        }`}
+                                      >
+                                        {/* Left team: Flag + Text */}
+                                        <div 
+                                          onClick={() => setSelectedTradingCardTeam(match.team1)}
+                                          className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                          title={`Clique para ver a Figurinha de ${match.team1}`}
+                                        >
+                                          <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                            <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                                          </div>
+                                          <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
+                                            {match.team1}
+                                          </span>
+                                        </div>
+
+                                        {/* Center Section: score pill */}
+                                        {isStarted ? (
+                                          <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
+                                            <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
+                                              INICIADO
+                                            </span>
+                                            {(prediction.score1 !== "" && prediction.score2 !== "") ? (
+                                              <span className="text-[11px] font-black text-neutral-800 tracking-wider">
+                                                {prediction.score1}-{prediction.score2}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="99"
+                                              inputMode="numeric"
+                                              placeholder="0"
+                                              value={prediction.score1}
+                                              onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
+                                              className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                            />
+                                            <span className="text-[10px] font-black text-[#032110] select-none">-</span>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="99"
+                                              inputMode="numeric"
+                                              placeholder="0"
+                                              value={prediction.score2}
+                                              onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
+                                              className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                            />
+                                          </div>
+                                        )}
+
+                                        {/* Right team: Text + Flag */}
+                                        <div 
+                                          onClick={() => setSelectedTradingCardTeam(match.team2)}
+                                          className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                          title={`Clique para ver a Figurinha de ${match.team2}`}
+                                        >
+                                          <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
+                                            {match.team2}
+                                          </span>
+                                          <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                            <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 )}

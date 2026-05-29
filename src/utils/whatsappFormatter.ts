@@ -72,7 +72,8 @@ export function formatWhatsAppMessage({
     const formattedDate = `${day}/${month}`;
     const gameNum = String(index).padStart(2, '0');
     const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
-    text += `🔹${gameNum} • ${match.team1} ${getTeamFlag(match.team1)} (🚫Fechado) ${getTeamFlag(match.team2)} ${match.team2}\n`;
+    const groupNameStr = match.group ? ` [${match.group}]` : "";
+    text += `🔹${gameNum}${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} (🚫Fechado) ${getTeamFlag(match.team2)} ${match.team2}\n`;
     text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
   });
 
@@ -92,18 +93,24 @@ export function formatWhatsAppMessage({
     const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
     const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
     const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
+    const groupNameStr = match.group ? ` [${match.group}]` : "";
     
-    text += `🔹${gameNum} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
+    text += `🔹${gameNum}${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
     text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
   });
 
   // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
-  if (secondRoundMatches.length > 0) {
+  const predictedSecondRoundMatches = secondRoundMatches.filter((match) => {
+    const prediction = predictions.find(p => p.matchId === match.id);
+    return prediction && prediction.score1 !== "" && prediction.score2 !== "";
+  });
+
+  if (predictedSecondRoundMatches.length > 0) {
     text += `${divider}\n`;
     text += `🔮 PRÉVIAS DA PRÓXIMA RODADA (OPCIONAIS)\n`;
     text += `${divider}\n`;
     
-    secondRoundMatches.forEach((match) => {
+    predictedSecondRoundMatches.forEach((match) => {
       const [year, month, day] = match.date.split("-");
       const formattedDate = `${day}/${month}`;
       
@@ -111,8 +118,9 @@ export function formatWhatsAppMessage({
       const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
       const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
       const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
+      const groupNameStr = match.group ? ` [${match.group}]` : "";
       
-      text += `🔹 ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
+      text += `🔹${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
       text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
     });
   }

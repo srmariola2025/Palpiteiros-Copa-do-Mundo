@@ -6,7 +6,17 @@ import { openFootballMockData } from "../data/mockSoccerData";
  */
 function determineStage(roundName: string, groupName?: string): string {
   const norm = ((roundName || "") + " " + (groupName || "")).toLowerCase();
-  if (norm.includes("final") && !norm.includes("semi") && !norm.includes("quar") && !norm.includes("oitov") && !norm.includes("oitav")) {
+  if (
+    norm.includes("terceiro") || 
+    norm.includes("third") || 
+    norm.includes("3º") || 
+    norm.includes("3o") || 
+    norm.includes("3rd") || 
+    norm.includes("bronze")
+  ) {
+    return "Disputa de 3º Lugar";
+  }
+  if (norm.includes("final") && !norm.includes("semi") && !norm.includes("quar") && !norm.includes("oitov") && !norm.includes("oitav") && !norm.includes("32") && !norm.includes("16 de final") && !norm.includes("16-avos") && !norm.includes("1/16") && !norm.includes("dezesseis")) {
     return "Final";
   }
   if (norm.includes("semi")) {
@@ -16,14 +26,25 @@ function determineStage(roundName: string, groupName?: string): string {
     return "Quartas de Final";
   }
   if (
+    norm.includes("round of 32") ||
+    norm.includes("r32") ||
+    norm.includes("1/16") ||
+    norm.includes("16-avos") ||
+    norm.includes("16 de final") ||
+    norm.includes("dezesseis") ||
+    (norm.includes("32") && !norm.includes("16") && !norm.includes("oitav"))
+  ) {
+    return "16 de Final";
+  }
+  if (
     norm.includes("oitava") || 
     norm.includes("last 16") || 
     norm.includes("round of 16") || 
-    norm.includes("round of 32") || 
-    norm.includes("32") || 
-    norm.includes("dezasseis") || 
-    norm.includes("1/16") ||
-    norm.includes("1/8")
+    norm.includes("r16") ||
+    norm.includes("1/8") ||
+    norm.includes("oitavas") ||
+    norm.includes("dezasseis") ||
+    norm.includes("16")
   ) {
     return "Oitavas de Final";
   }
