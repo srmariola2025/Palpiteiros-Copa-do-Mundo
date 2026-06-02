@@ -22,7 +22,7 @@ export const openFootballMockData: CompetitionData = {
       time: "18:00",
       team1: "Coreia do Sul",
       team2: "República Checa",
-      stadium: "Estádio Azteca, C. do México",
+      stadium: "Estádio de Guadalajara, Guadalajara",
       stage: "Fase de Grupos"
     },
 
@@ -30,21 +30,21 @@ export const openFootballMockData: CompetitionData = {
     {
       id: "wc2026-gB-1",
       group: "Grupo B",
-      date: "2026-06-11",
+      date: "2026-06-12",
       time: "16:00",
       team1: "Canadá",
       team2: "Bósnia",
-      stadium: "Estádio de Vancouver, Vancouver",
+      stadium: "Estádio de Toronto, Toronto",
       stage: "Fase de Grupos"
     },
     {
       id: "wc2026-gB-2",
       group: "Grupo B",
-      date: "2026-06-11",
+      date: "2026-06-12",
       time: "19:00",
       team1: "Catar",
       team2: "Suíça",
-      stadium: "Estádio de Toronto, Toronto",
+      stadium: "Estádio de Vancouver, Vancouver",
       stage: "Fase de Grupos"
     },
 
@@ -52,7 +52,7 @@ export const openFootballMockData: CompetitionData = {
     {
       id: "wc2026-gC-1",
       group: "Grupo C",
-      date: "2026-06-12",
+      date: "2026-06-13",
       time: "14:00",
       team1: "Brasil",
       team2: "Marrocos",
@@ -62,7 +62,7 @@ export const openFootballMockData: CompetitionData = {
     {
       id: "wc2026-gC-2",
       group: "Grupo C",
-      date: "2026-06-12",
+      date: "2026-06-13",
       time: "17:00",
       team1: "Haiti",
       team2: "Escócia",
@@ -684,7 +684,7 @@ export const groupStageSecondRoundMatches = [
     time: "13:00",
     team1: "México",
     team2: "Coreia do Sul",
-    stadium: "Estádio Azteca, C. do México",
+    stadium: "Estádio de Guadalajara, Guadalajara",
     stage: "Fase de Grupos"
   },
   {
@@ -694,7 +694,7 @@ export const groupStageSecondRoundMatches = [
     time: "22:00",
     team1: "África do Sul",
     team2: "República Checa",
-    stadium: "Estádio de Guadalajara, Guadalajara",
+    stadium: "Estádio Azteca, C. do México",
     stage: "Fase de Grupos"
   },
 
@@ -728,7 +728,7 @@ export const groupStageSecondRoundMatches = [
     time: "11:00",
     team1: "Brasil",
     team2: "Haiti",
-    stadium: "Estádio Azteca, C. do México",
+    stadium: "MetLife Stadium, Nova Iorque",
     stage: "Fase de Grupos"
   },
   {
@@ -738,7 +738,7 @@ export const groupStageSecondRoundMatches = [
     time: "20:00",
     team1: "Marrocos",
     team2: "Escócia",
-    stadium: "Estádio de Monterrey, Monterrey",
+    stadium: "Gillette Stadium, Boston",
     stage: "Fase de Grupos"
   },
 
@@ -750,7 +750,7 @@ export const groupStageSecondRoundMatches = [
     time: "15:00",
     team1: "Estados Unidos",
     team2: "Austrália",
-    stadium: "SoFi Stadium, Los Angeles",
+    stadium: "Lumen Field, Seattle",
     stage: "Fase de Grupos"
   },
   {
@@ -760,7 +760,7 @@ export const groupStageSecondRoundMatches = [
     time: "18:00",
     team1: "Paraguai",
     team2: "Turquia",
-    stadium: "Lumen Field, Seattle",
+    stadium: "SoFi Stadium, Los Angeles",
     stage: "Fase de Grupos"
   },
 

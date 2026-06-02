@@ -515,6 +515,13 @@ export default function App() {
     return realNow >= matchEndTimeBRT || simulatedDate >= matchEndTimeBRT;
   };
 
+  // Reset selected tab to "Fase de Grupos" when group stage has not concluded
+  useEffect(() => {
+    if (!isGroupStageFinished() && selectedStageTab !== "Fase de Grupos") {
+      setSelectedStageTab("Fase de Grupos");
+    }
+  }, [simulatedDate, selectedStageTab]);
+
   const isGroupPredictionLocked = (groupName: string): boolean => {
     return isGlobalPredictionLocked();
   };
@@ -1097,7 +1104,10 @@ export default function App() {
           <div className="mt-3 border-t border-emerald-800/40 pt-2.5">
             <span className="text-neutral-400 font-bold text-[9px] block mb-1.5 uppercase tracking-wider">SELECIONE A FASE PARA PALPITAR:</span>
             <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap text-[9.5px]">
-              {["Fase de Grupos", "16 de Final", "Oitavas de Final", "Quartas de Final", "Semifinais", "Disputa de 3º Lugar", "Final"].map((stg) => {
+              {(isGroupStageFinished()
+                ? ["Fase de Grupos", "16 de Final", "Oitavas de Final", "Quartas de Final", "Semifinais", "Disputa de 3º Lugar", "Final"]
+                : ["Fase de Grupos"]
+              ).map((stg) => {
                 const label = stg === "16 de Final" ? "Round of 32" : (stg === "Oitavas de Final" ? "Oitavas" : (stg === "Quartas de Final" ? "Quartas" : (stg === "Fase de Grupos" ? "Grupos" : stg)));
                 const isActive = selectedStageTab === stg;
                 return (
