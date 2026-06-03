@@ -22,9 +22,14 @@ export interface UserPrediction {
 }
 
 export interface BetSlipSubmission {
+  ticketCode: string; // Exemplo: COPA-89F0-4F0A
   fullName: string;
-  phone: string;
-  predictions: UserPrediction[];
-  submittedAt: string;
-  roundCode: string;
+  submittedAt: string; // ISO String
+  predictions: {
+    matchId: string;
+    team1Score: string | number;
+    team2Score: string | number;
+    team1Name: string;
+    team2Name: string;
+  }[];
 }

@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 import { openFootballMockData, getTeamFlag, groupStageSecondRoundMatches } from "./data/mockSoccerData";
-import { CompetitionData, UserPrediction, Match } from "./types";
+import { CompetitionData, UserPrediction, Match, BetSlipSubmission } from "./types";
 import { formatWhatsAppMessage, generateTicketCode } from "./utils/whatsappFormatter";
 import { loadOpenFootballDataFromURL } from "./utils/openFootballLoader";
 import { validateOpenFootballDataFor2026 } from "./utils/fifaValidator";
@@ -36,6 +36,7 @@ import Barcode from "./components/Barcode";
 import InfoModal from "./components/InfoModal";
 import TeamCardModal from "./components/TeamCardModal";
 import TeamFlag from "./components/TeamFlag";
+import RecentSlips from "./components/RecentSlips";
 
 const getGroupColors = (groupName: string) => {
   const cleanName = groupName.trim().toUpperCase();
@@ -282,6 +283,103 @@ export default function App() {
   const [fullName, setFullName] = useState("");
   const [predictions, setPredictions] = useState<Record<string, { score1: string; score2: string }>>({});
   const [ticketCode, setTicketCode] = useState("LOTO-INIT-26");
+
+  const [recentSlips, setRecentSlips] = useState<BetSlipSubmission[]>(() => {
+    try {
+      const stored = localStorage.getItem("copa_betslips");
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.warn("Storage inacessível:", e);
+      return [];
+    }
+  });
+
+  const handleRestoreSlip = (slip: BetSlipSubmission) => {
+    setFullName(slip.fullName);
+    
+    const restoredPreds: Record<string, { score1: string; score2: string }> = {};
+    slip.predictions.forEach(p => {
+      restoredPreds[p.matchId] = {
+        score1: String(p.team1Score),
+        score2: String(p.team2Score)
+      };
+    });
+    
+    setPredictions(prev => ({
+      ...prev,
+      ...restoredPreds
+    }));
+    
+    if (slip.ticketCode) {
+      setTicketCode(slip.ticketCode);
+    }
+    
+    setTimeout(() => {
+      const targetElement = document.getElementById("id-do-volante");
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: "smooth" });
+      } else {
+        document.querySelector("form")?.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 100);
+  };
+
+  const handleResendRecentSlip = (slip: BetSlipSubmission) => {
+    const mappedPredictions: UserPrediction[] = slip.predictions.map(p => ({
+      matchId: p.matchId,
+      score1: String(p.team1Score),
+      score2: String(p.team2Score)
+    }));
+
+    const secondRoundMatchesToShow = groupStageSecondRoundMatches.filter((match) => {
+      const pred = mappedPredictions.find(pr => pr.matchId === match.id);
+      return pred && pred.score1 !== "" && pred.score2 !== "";
+    });
+
+    const activeStageName = selectedStageTab || "Fase de Grupos";
+    
+    const mainMatchesList: Match[] = [];
+    slip.predictions.forEach(p => {
+      const match = competitionData.matches.find(m => m.id === p.matchId);
+      if (match) {
+        mainMatchesList.push(match);
+      } else {
+        mainMatchesList.push({
+          id: p.matchId,
+          team1: p.team1Name,
+          team2: p.team2Name,
+          date: "2026-06-11",
+          time: "16:00",
+          stage: activeStageName
+        });
+      }
+    });
+
+    const slipDate = new Date(slip.submittedAt);
+    const dd = String(slipDate.getDate()).padStart(2, '0');
+    const mm = String(slipDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = slipDate.getFullYear();
+    const formattedSlipDate = `${dd}/${mm}/${yyyy}`;
+
+    const formattedMsg = formatWhatsAppMessage({
+      fullName: slip.fullName,
+      round: `${competitionData.round} [${activeStageName.toUpperCase()}]`,
+      competition: competitionData.competition,
+      matches: mainMatchesList.length > 0 ? mainMatchesList : activeMatches,
+      predictions: mappedPredictions,
+      emissionDate: formattedSlipDate,
+      ticketCode: slip.ticketCode,
+      secondRoundMatches: secondRoundMatchesToShow,
+      simulatedDateStr: slip.submittedAt,
+      groupPredictions,
+      finalistPredictions,
+      activeStage: activeStageName
+    });
+
+    const encodedText = encodeURIComponent(formattedMsg);
+    const finalWhatsAppUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+    window.open(finalWhatsAppUrl, "_blank", "noopener,noreferrer");
+  };
 
   const hadSavedPrognosticos = useRef<boolean>(false);
   useEffect(() => {
@@ -809,6 +907,29 @@ export default function App() {
     try {
       localStorage.setItem(uniqueValidationKey, JSON.stringify(ticketValue));
       loadTicketHistory();
+
+      // Save structured slip into recentSlips and "copa_betslips" in localStorage
+      const structuredPredictions = listPredictions.map(p => {
+        const match = competitionData.matches.find(m => m.id === p.matchId);
+        return {
+          matchId: p.matchId,
+          team1Score: p.score1,
+          team2Score: p.score2,
+          team1Name: match ? match.team1 : "Equipa A",
+          team2Name: match ? match.team2 : "Equipa B"
+        };
+      });
+
+      const slipSubmission: BetSlipSubmission = {
+        ticketCode,
+        fullName,
+        submittedAt: new Date().toISOString(),
+        predictions: structuredPredictions
+      };
+
+      const updatedSlips = [slipSubmission, ...recentSlips].slice(0, 3);
+      setRecentSlips(updatedSlips);
+      localStorage.setItem("copa_betslips", JSON.stringify(updatedSlips));
     } catch (saveErr) {
       console.error("Não foi possível salvar na cache do telemóvel:", saveErr);
     }
@@ -1239,7 +1360,7 @@ export default function App() {
             </div>
 
             {/* Form layout */}
-            <form onSubmit={handleEnviarPalpites} className="mt-5 space-y-4">
+            <form onSubmit={handleEnviarPalpites} id="id-do-volante" className="mt-5 space-y-4">
               
               {/* Bettor Info Section */}
               <div className="bg-[#f0ebde] p-3 border border-neutral-300 rounded space-y-3">
@@ -2038,6 +2159,12 @@ export default function App() {
         <div className="serrated-edge-bottom" />
 
       </main>
+
+      <RecentSlips
+        slips={recentSlips}
+        onResend={handleResendRecentSlip}
+        onRestore={handleRestoreSlip}
+      />
 
       {/* Persistent Footer with credit */}
       <footer className="relative z-10 text-center mt-6 text-[11px] text-emerald-200">
