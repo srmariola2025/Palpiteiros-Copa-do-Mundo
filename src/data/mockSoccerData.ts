@@ -277,8 +277,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-28",
       time: "14:00",
-      team1: "México",
-      team2: "Suíça",
+      team1: "A Definir (2º Grupo A)",
+      team2: "A Definir (2º Grupo B)",
       stadium: "SoFi Stadium, Los Angeles",
       stage: "16 de Final"
     },
@@ -287,8 +287,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-28",
       time: "18:00",
-      team1: "Inglaterra",
-      team2: "Senegal",
+      team1: "A Definir (1º Grupo A)",
+      team2: "A Definir (3º Grupo C/D/F/I)",
       stadium: "MetLife Stadium, Nova Iorque",
       stage: "16 de Final"
     },
@@ -297,8 +297,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-29",
       time: "14:00",
-      team1: "França",
-      team2: "Marrocos",
+      team1: "A Definir (1º Grupo B)",
+      team2: "A Definir (3º Grupo E/F/G/H)",
       stadium: "Mercedes-Benz Stadium, Atlanta",
       stage: "16 de Final"
     },
@@ -307,8 +307,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-29",
       time: "18:00",
-      team1: "Brasil",
-      team2: "Uruguai",
+      team1: "A Definir (1º Grupo C)",
+      team2: "A Definir (3º Grupo F/G/I/J)",
       stadium: "Hard Rock Stadium, Miami",
       stage: "16 de Final"
     },
@@ -317,8 +317,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-30",
       time: "14:00",
-      team1: "Argentina",
-      team2: "Estados Unidos",
+      team1: "A Definir (1º Grupo F)",
+      team2: "A Definir (2º Grupo C)",
       stadium: "Gillette Stadium, Boston",
       stage: "16 de Final"
     },
@@ -327,8 +327,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-30",
       time: "18:00",
-      team1: "Portugal",
-      team2: "Suécia",
+      team1: "A Definir (2º Grupo E)",
+      team2: "A Definir (2º Grupo F)",
       stadium: "AT&T Stadium, Dallas",
       stage: "16 de Final"
     },
@@ -337,8 +337,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-01",
       time: "14:00",
-      team1: "Alemanha",
-      team2: "Japão",
+      team1: "A Definir (1º Grupo E)",
+      team2: "A Definir (3º Grupo A/B/C/D)",
       stadium: "Lumen Field, Seattle",
       stage: "16 de Final"
     },
@@ -347,8 +347,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-01",
       time: "18:00",
-      team1: "Holanda",
-      team2: "Noruega",
+      team1: "A Definir (1º Grupo I)",
+      team2: "A Definir (3º Grupo B/C/D/E/F)",
       stadium: "BC Place, Vancouver",
       stage: "16 de Final"
     },
@@ -357,8 +357,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-02",
       time: "14:00",
-      team1: "Espanha",
-      team2: "Egito",
+      team1: "A Definir (2º Grupo G)",
+      team2: "A Definir (2º Grupo K)",
       stadium: "NRG Stadium, Houston",
       stage: "16 de Final"
     },
@@ -367,8 +367,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-02",
       time: "18:00",
-      team1: "Áustria",
-      team2: "Croácia",
+      team1: "A Definir (1º Grupo G)",
+      team2: "A Definir (3º Grupo A/B/E/I/J)",
       stadium: "Arrowhead Stadium, Kansas City",
       stage: "16 de Final"
     },
@@ -377,8 +377,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-03",
       time: "14:00",
-      team1: "Bélgica",
-      team2: "Paraguai",
+      team1: "A Definir (1º Grupo H)",
+      team2: "A Definir (2º Grupo I)",
       stadium: "Estádio Azteca, C. do México",
       stage: "16 de Final"
     },
@@ -387,8 +387,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-03",
       time: "18:00",
-      team1: "Escócia",
-      team2: "Austrália",
+      team1: "A Definir (1º Grupo J)",
+      team2: "A Definir (2º Grupo H)",
       stadium: "Estádio de Toronto, Toronto",
       stage: "16 de Final"
     },
@@ -397,8 +397,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-29",
       time: "21:00",
-      team1: "Canadá",
-      team2: "Equador",
+      team1: "A Definir (1º Grupo D)",
+      team2: "A Definir (3º Grupo G/H/K/L)",
       stadium: "Estádio de Guadalajara, Guadalajara",
       stage: "16 de Final"
     },
@@ -407,8 +407,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-06-30",
       time: "21:00",
-      team1: "Colômbia",
-      team2: "Turquia",
+      team1: "A Definir (2º Grupo D)",
+      team2: "A Definir (2º Grupo L)",
       stadium: "Estádio de Monterrey, Monterrey",
       stage: "16 de Final"
     },
@@ -417,8 +417,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-01",
       time: "21:00",
-      team1: "Tunísia",
-      team2: "Coreia do Sul",
+      team1: "A Definir (1º Grupo K)",
+      team2: "A Definir (2º Grupo J)",
       stadium: "Levi's Stadium, São Francisco",
       stage: "16 de Final"
     },
@@ -427,8 +427,8 @@ export const openFootballMockData: CompetitionData = {
       group: "16 de Final",
       date: "2026-07-02",
       time: "21:00",
-      team1: "Gana",
-      team2: "África do Sul",
+      team1: "A Definir (1º Grupo L)",
+      team2: "A Definir (3º Grupo E/H/I/J)",
       stadium: "Hard Rock Stadium, Miami",
       stage: "16 de Final"
     },
@@ -938,6 +938,272 @@ export const groupStageSecondRoundMatches = [
     team1: "Panamá",
     team2: "Croácia",
     stadium: "Estádio de Toronto, Toronto",
+    stage: "Fase de Grupos"
+  }
+];
+
+export const groupStageThirdRoundMatches = [
+  // --- GRUPO B ---
+  {
+    id: "wc2026-gB-3r1",
+    group: "Grupo B",
+    date: "2026-06-24",
+    time: "16:00",
+    team1: "Suíça",
+    team2: "Canadá",
+    stadium: "BC Place, Vancouver",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gB-3r2",
+    group: "Grupo B",
+    date: "2026-06-24",
+    time: "16:00",
+    team1: "Bósnia",
+    team2: "Catar",
+    stadium: "Lumen Field, Seattle",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO C ---
+  {
+    id: "wc2026-gC-3r1",
+    group: "Grupo C",
+    date: "2026-06-24",
+    time: "19:00",
+    team1: "Escócia",
+    team2: "Brasil",
+    stadium: "Hard Rock Stadium, Miami",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gC-3r2",
+    group: "Grupo C",
+    date: "2026-06-24",
+    time: "19:00",
+    team1: "Marrocos",
+    team2: "Haiti",
+    stadium: "Mercedes-Benz Stadium, Atlanta",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO A ---
+  {
+    id: "wc2026-gA-3r1",
+    group: "Grupo A",
+    date: "2026-06-24",
+    time: "22:00",
+    team1: "República Checa",
+    team2: "México",
+    stadium: "Estádio Azteca, C. do México",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gA-3r2",
+    group: "Grupo A",
+    date: "2026-06-24",
+    time: "22:00",
+    team1: "África do Sul",
+    team2: "Coreia do Sul",
+    stadium: "Estádio de Monterrey, Monterrey",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO E ---
+  {
+    id: "wc2026-gE-3r1",
+    group: "Grupo E",
+    date: "2026-06-25",
+    time: "17:00",
+    team1: "Equador",
+    team2: "Alemanha",
+    stadium: "MetLife Stadium, Nova Iorque",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gE-3r2",
+    group: "Grupo E",
+    date: "2026-06-25",
+    time: "17:00",
+    team1: "Curaçau",
+    team2: "Costa do Marfim",
+    stadium: "Lincoln Financial Field, Filadélfia",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO F ---
+  {
+    id: "wc2026-gF-3r1",
+    group: "Grupo F",
+    date: "2026-06-25",
+    time: "20:00",
+    team1: "Japão",
+    team2: "Suécia",
+    stadium: "AT&T Stadium, Dallas",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gF-3r2",
+    group: "Grupo F",
+    date: "2026-06-25",
+    time: "20:00",
+    team1: "Tunísia",
+    team2: "Holanda",
+    stadium: "Arrowhead Stadium, Kansas City",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO D ---
+  {
+    id: "wc2026-gD-3r1",
+    group: "Grupo D",
+    date: "2026-06-25",
+    time: "23:00",
+    team1: "Turquia",
+    team2: "Estados Unidos",
+    stadium: "SoFi Stadium, Los Angeles",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gD-3r2",
+    group: "Grupo D",
+    date: "2026-06-25",
+    time: "23:00",
+    team1: "Paraguai",
+    team2: "Austrália",
+    stadium: "Levi's Stadium, São Francisco",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO I ---
+  {
+    id: "wc2026-gI-3r1",
+    group: "Grupo I",
+    date: "2026-06-26",
+    time: "16:00",
+    team1: "Noruega",
+    team2: "França",
+    stadium: "Gillette Stadium, Boston",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gI-3r2",
+    group: "Grupo I",
+    date: "2026-06-26",
+    time: "16:00",
+    team1: "Senegal",
+    team2: "Iraque",
+    stadium: "Estádio de Toronto, Toronto",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO H ---
+  {
+    id: "wc2026-gH-3r1",
+    group: "Grupo H",
+    date: "2026-06-26",
+    time: "21:00",
+    team1: "Cabo Verde",
+    team2: "Arábia Saudita",
+    stadium: "NRG Stadium, Houston",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gH-3r2",
+    group: "Grupo H",
+    date: "2026-06-26",
+    time: "21:00",
+    team1: "Uruguai",
+    team2: "Espanha",
+    stadium: "Estádio de Guadalajara, Guadalajara",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO G ---
+  {
+    id: "wc2026-gG-3r1",
+    group: "Grupo G",
+    date: "2026-06-27",
+    time: "00:00",
+    team1: "Egito",
+    team2: "Irã",
+    stadium: "Lumen Field, Seattle",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gG-3r2",
+    group: "Grupo G",
+    date: "2026-06-27",
+    time: "00:00",
+    team1: "Nova Zelândia",
+    team2: "Bélgica",
+    stadium: "BC Place, Vancouver",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO L ---
+  {
+    id: "wc2026-gL-3r1",
+    group: "Grupo L",
+    date: "2026-06-27",
+    time: "18:00",
+    team1: "Panamá",
+    team2: "Inglaterra",
+    stadium: "MetLife Stadium, Nova Iorque",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gL-3r2",
+    group: "Grupo L",
+    date: "2026-06-27",
+    time: "18:00",
+    team1: "Croácia",
+    team2: "Gana",
+    stadium: "Lincoln Financial Field, Filadélfia",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO K ---
+  {
+    id: "wc2026-gK-3r1",
+    group: "Grupo K",
+    date: "2026-06-27",
+    time: "20:30",
+    team1: "Colômbia",
+    team2: "Portugal",
+    stadium: "Hard Rock Stadium, Miami",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gK-3r2",
+    group: "Grupo K",
+    date: "2026-06-27",
+    time: "20:30",
+    team1: "RD Congo",
+    team2: "Uzbequistão",
+    stadium: "Mercedes-Benz Stadium, Atlanta",
+    stage: "Fase de Grupos"
+  },
+
+  // --- GRUPO J ---
+  {
+    id: "wc2026-gJ-3r1",
+    group: "Grupo J",
+    date: "2026-06-27",
+    time: "23:00",
+    team1: "Argélia",
+    team2: "Áustria",
+    stadium: "Arrowhead Stadium, Kansas City",
+    stage: "Fase de Grupos"
+  },
+  {
+    id: "wc2026-gJ-3r2",
+    group: "Grupo J",
+    date: "2026-06-27",
+    time: "23:00",
+    team1: "Jordânia",
+    team2: "Argentina",
+    stadium: "AT&T Stadium, Dallas",
     stage: "Fase de Grupos"
   }
 ];

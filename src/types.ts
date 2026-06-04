@@ -13,6 +13,10 @@ export interface CompetitionData {
   competition: string;
   round: string;
   matches: Match[];
+  isTxtCupFinals?: boolean;
+  txtContent?: string;
+  isCsvGoogleSheet?: boolean;
+  csvContent?: string;
 }
 
 export interface UserPrediction {

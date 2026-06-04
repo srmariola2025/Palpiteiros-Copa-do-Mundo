@@ -26,10 +26,10 @@ import {
   X
 } from "lucide-react";
 
-import { openFootballMockData, getTeamFlag, groupStageSecondRoundMatches } from "./data/mockSoccerData";
+import { openFootballMockData, getTeamFlag, teamFlags, groupStageSecondRoundMatches, groupStageThirdRoundMatches } from "./data/mockSoccerData";
 import { CompetitionData, UserPrediction, Match, BetSlipSubmission } from "./types";
 import { formatWhatsAppMessage, generateTicketCode } from "./utils/whatsappFormatter";
-import { loadOpenFootballDataFromURL } from "./utils/openFootballLoader";
+import { loadOpenFootballDataFromURL, mergeCupFinalsIntoCompetitionData, mergeGoogleSheetCSVIntoCompetitionData } from "./utils/openFootballLoader";
 import { validateOpenFootballDataFor2026 } from "./utils/fifaValidator";
 
 import Barcode from "./components/Barcode";
@@ -157,6 +157,73 @@ const getGroupColors = (groupName: string) => {
   };
 };
 
+const getDuePhaseIndex = (date: Date, matches: Match[]): number => {
+  if (!matches || matches.length === 0) return 0;
+  const phasesEndTimes: { index: number; maxTime: number; minTime: number }[] = [];
+  
+  for (let idx = 0; idx <= 7; idx++) {
+    const pMatches = matches.filter(m => {
+      const mStage = m.stage || "Fase de Grupos";
+      if (idx === 0) {
+        return mStage === "Fase de Grupos" && !m.id.includes("-2r") && !m.id.includes("-3r");
+      }
+      if (idx === 1) {
+        return mStage === "Fase de Grupos" && m.id.includes("-2r");
+      }
+      if (idx === 2) {
+        return mStage === "Fase de Grupos" && m.id.includes("-3r");
+      }
+      if (idx === 3) {
+        return mStage === "16 de Final" || mStage.toLowerCase().includes("16") || mStage.includes("32") || mStage.toLowerCase().includes("dezesseis");
+      }
+      if (idx === 4) {
+        return mStage === "Oitavas de Final" || mStage.toLowerCase().includes("oitav") || mStage.includes("1/8") || mStage.toLowerCase().includes("r16");
+      }
+      if (idx === 5) {
+        return mStage === "Quartas de Final" || mStage.toLowerCase().includes("quartas") || mStage.includes("1/4") || mStage.toLowerCase().includes("quarter");
+      }
+      if (idx === 6) {
+        return mStage === "Semifinais" || mStage.toLowerCase().includes("semi");
+      }
+      if (idx === 7) {
+        return mStage === "Disputa de 3º Lugar" || mStage === "Final" || ["final", "3o lugar", "disputa de 3º lugar", "terceiro"].includes(mStage.toLowerCase());
+      }
+      return false;
+    });
+
+    if (pMatches.length > 0) {
+      const times = pMatches.map(m => {
+        return new Date(`${m.date}T${m.time}:00-03:00`).getTime();
+      });
+      const minTime = Math.min(...times);
+      const maxTime = Math.max(...times) + 2.5 * 60 * 60 * 1000; // 2.5 hours duration
+      phasesEndTimes.push({ index: idx, minTime, maxTime });
+    }
+  }
+
+  phasesEndTimes.sort((a, b) => a.index - b.index);
+  const dateTime = date.getTime();
+
+  for (const p of phasesEndTimes) {
+    if (dateTime <= p.maxTime) {
+      return p.index;
+    }
+  }
+  return 7;
+};
+
+interface TeamStats {
+  team: string;
+  points: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+}
+
 export default function App() {
   // 1. Core State
   const [competitionData, setCompetitionData] = useState<CompetitionData>(() => {
@@ -168,12 +235,92 @@ export default function App() {
         mergedMatches.push(m);
       }
     });
+    groupStageThirdRoundMatches.forEach(m => {
+      if (!groupMatchesIds.has(m.id)) {
+        mergedMatches.push(m);
+      }
+    });
     raw.matches = mergedMatches;
     return raw;
   });
   
   const [selectedStageTab, setSelectedStageTab] = useState<string>("Fase de Grupos");
   const bracketContainerRef = useRef<HTMLDivElement>(null);
+
+  // --- COPA 2026 DE SEQUENTIAL PHASES STATE ---
+  const PHASES = [
+    "1ª Rodada (Fase de Grupos)",
+    "2ª Rodada (Fase de Grupos)",
+    "3ª Rodada (Fase de Grupos)",
+    "Dezesseis-avos de Final",
+    "Oitavas de Final",
+    "Quartas de Final",
+    "Semifinais",
+    "Disputa do 3º Lugar e Final"
+  ];
+
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("copa_selected_phase");
+      if (saved !== null) {
+        const idx = parseInt(saved, 10);
+        if (idx >= 0 && idx <= 7) return idx;
+      }
+    } catch (err) {
+      console.warn("Storage inacessível para fase inicial:", err);
+    }
+    
+    // Default dynamic index based on loaded matches and simulated/real date
+    try {
+      const storedDateStr = localStorage.getItem("loto_simulated_date_brt");
+      const d = storedDateStr ? new Date(storedDateStr) : new Date();
+      const raw = { ...openFootballMockData };
+      const groupMatchesIds = new Set(raw.matches.map(m => m.id));
+      const mergedMatches = [...raw.matches];
+      groupStageSecondRoundMatches.forEach(m => {
+        if (!groupMatchesIds.has(m.id)) mergedMatches.push(m);
+      });
+      groupStageThirdRoundMatches.forEach(m => {
+        if (!groupMatchesIds.has(m.id)) mergedMatches.push(m);
+      });
+      return getDuePhaseIndex(d, mergedMatches);
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("copa_selected_phase", String(currentPhaseIndex));
+    } catch (err) {
+      console.warn("Falha ao salvar copa_selected_phase:", err);
+    }
+  }, [currentPhaseIndex]);
+
+  const handlePrevPhase = () => {
+    setCurrentPhaseIndex(prev => Math.max(0, prev - 1));
+  };
+
+  const handleNextPhase = () => {
+    setCurrentPhaseIndex(prev => Math.min(7, prev + 1));
+  };
+
+  // Sync currentPhaseIndex selection with selectedStageTab for compatible rendering and scrolling
+  useEffect(() => {
+    if (currentPhaseIndex === 0 || currentPhaseIndex === 1 || currentPhaseIndex === 2) {
+      setSelectedStageTab("Fase de Grupos");
+    } else if (currentPhaseIndex === 3) {
+      setSelectedStageTab("16 de Final");
+    } else if (currentPhaseIndex === 4) {
+      setSelectedStageTab("Oitavas de Final");
+    } else if (currentPhaseIndex === 5) {
+      setSelectedStageTab("Quartas de Final");
+    } else if (currentPhaseIndex === 6) {
+      setSelectedStageTab("Semifinais");
+    } else if (currentPhaseIndex === 7) {
+      setSelectedStageTab("Final");
+    }
+  }, [currentPhaseIndex]);
 
   // --- TRIAL/TEST MODE CONTROLLER ---
   const [showSimulator, setShowSimulator] = useState<boolean>(() => {
@@ -215,6 +362,32 @@ export default function App() {
     return new Date();
   });
 
+  const [customBrtInput, setCustomBrtInput] = useState<string>(() => {
+    try {
+      const year = simulatedDate.getFullYear();
+      const month = String(simulatedDate.getMonth() + 1).padStart(2, "0");
+      const day = String(simulatedDate.getDate()).padStart(2, "0");
+      const hours = String(simulatedDate.getHours()).padStart(2, "0");
+      const minutes = String(simulatedDate.getMinutes()).padStart(2, "0");
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (e) {
+      return "2026-06-11T16:00";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const year = simulatedDate.getFullYear();
+      const month = String(simulatedDate.getMonth() + 1).padStart(2, "0");
+      const day = String(simulatedDate.getDate()).padStart(2, "0");
+      const hours = String(simulatedDate.getHours()).padStart(2, "0");
+      const minutes = String(simulatedDate.getMinutes()).padStart(2, "0");
+      setCustomBrtInput(`${year}-${month}-${day}T${hours}:${minutes}`);
+    } catch (e) {
+      // silent
+    }
+  }, [simulatedDate]);
+
   // Ticking effect for real clock when not simulated/frozen
   useEffect(() => {
     let hasStoredOverride = false;
@@ -224,11 +397,21 @@ export default function App() {
     
     if (!showSimulator && !hasStoredOverride) {
       const interval = setInterval(() => {
-        setSimulatedDate(new Date());
+        const now = new Date();
+        setSimulatedDate(now);
+        
+        let hasManualPhaseOverride = false;
+        try {
+          hasManualPhaseOverride = localStorage.getItem("copa_selected_phase") !== null;
+        } catch (e) {}
+        
+        if (!hasManualPhaseOverride) {
+          setCurrentPhaseIndex(getDuePhaseIndex(now, competitionData.matches));
+        }
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [showSimulator]);
+  }, [showSimulator, competitionData.matches]);
 
   const handleTrophyClick = (e?: React.MouseEvent) => {
     if (e) {
@@ -480,7 +663,7 @@ export default function App() {
 
   // 2. Integration / Settings State
   const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
-  const [customJsonUrl, setCustomJsonUrl] = useState("https://raw.githubusercontent.com/openfootball/football.json/master/2026/worldcup.json");
+  const [customJsonUrl, setCustomJsonUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vRFOMgTg3z8yjd9-xqPx5Ks0LrqfSMiU1Ieona4IMT8Xv_mqiFMLytSdPjNNzhkH6qwuudJe56Wj6vt/pub?output=csv");
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [apiSuccessMsg, setApiSuccessMsg] = useState<string | null>(null);
   const [apiErrorMsg, setApiErrorMsg] = useState<string | null>(null);
@@ -513,13 +696,19 @@ export default function App() {
     // Read previous records history
     loadTicketHistory();
 
-    // Background loader to sync directly with the official GitHub repository for real-time 2026 data
+    // Background loader to sync directly with the official Google Sheet CSV for real-time 2026 data
     const syncRealWorldCupData = async () => {
       try {
-        const data = await loadOpenFootballDataFromURL("https://raw.githubusercontent.com/openfootball/football.json/master/2026/worldcup.json");
-        if (data && data.matches && data.matches.length > 0) {
+        const data = await loadOpenFootballDataFromURL("https://docs.google.com/spreadsheets/d/e/2PACX-1vRFOMgTg3z8yjd9-xqPx5Ks0LrqfSMiU1Ieona4IMT8Xv_mqiFMLytSdPjNNzhkH6qwuudJe56Wj6vt/pub?output=csv");
+        if (data && data.isCsvGoogleSheet && data.csvContent) {
+          setCompetitionData(current => mergeGoogleSheetCSVIntoCompetitionData(current, data.csvContent!));
+          console.log("Sincronização em segundo plano via Google Sheet efetuada com sucesso!");
+        } else if (data && data.isTxtCupFinals && data.txtContent) {
+          setCompetitionData(current => mergeCupFinalsIntoCompetitionData(current, data.txtContent!));
+          console.log("Sincronização em segundo plano via cup_finals.txt efetuada com sucesso!");
+        } else if (data && data.matches && data.matches.length > 0) {
           setCompetitionData(data);
-          console.log("Sincronização com o GitHub efetuada com sucesso!");
+          console.log("Sincronização em segundo plano efetuada com sucesso!");
         }
       } catch (err) {
         // Safe silent fallback: we already have a robust, updated, high-fidelity offline-first template loaded.
@@ -559,8 +748,247 @@ export default function App() {
     }
   };
 
-  // --- CORE MATCH ENRICHMENT & CLASSIFICATION ---
-  const enrichedMatches = competitionData.matches;
+  // --- CLASSIFICAÇÃO DINÂMICA DE GRUPOS E MATA-MATA ---
+  const resolvedMatches = useMemo(() => {
+    const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+    const groupsStandings: Record<string, TeamStats[]> = {};
+
+    groupsList.forEach(letter => {
+      const fullGroupName = `Grupo ${letter}`;
+      
+      const teamsSet = new Set<string>();
+      competitionData.matches.forEach(m => {
+        if ((m.stage || "Fase de Grupos") === "Fase de Grupos" && (m.group || "").trim().toLowerCase() === fullGroupName.trim().toLowerCase()) {
+          if (m.team1) teamsSet.add(m.team1);
+          if (m.team2) teamsSet.add(m.team2);
+        }
+      });
+      const groupTeams = Array.from(teamsSet);
+
+      const statsMap: Record<string, TeamStats> = {};
+      groupTeams.forEach(t => {
+        statsMap[t] = {
+          team: t,
+          points: 0,
+          played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0
+        };
+      });
+
+      const groupMatches = competitionData.matches.filter(m => 
+        (m.stage || "Fase de Grupos") === "Fase de Grupos" && 
+        (m.group || "").trim().toLowerCase() === fullGroupName.trim().toLowerCase()
+      );
+
+      groupMatches.forEach(m => {
+        const pred = predictions[m.id];
+        const hasScore = pred && pred.score1 !== "" && pred.score2 !== "";
+        if (hasScore && statsMap[m.team1] && statsMap[m.team2]) {
+          const s1 = parseInt(pred.score1, 10);
+          const s2 = parseInt(pred.score2, 10);
+          
+          statsMap[m.team1].played += 1;
+          statsMap[m.team2].played += 1;
+          statsMap[m.team1].goalsFor += s1;
+          statsMap[m.team1].goalsAgainst += s2;
+          statsMap[m.team2].goalsFor += s2;
+          statsMap[m.team2].goalsAgainst += s1;
+          statsMap[m.team1].goalDifference = statsMap[m.team1].goalsFor - statsMap[m.team1].goalsAgainst;
+          statsMap[m.team2].goalDifference = statsMap[m.team2].goalsFor - statsMap[m.team2].goalsAgainst;
+
+          if (s1 > s2) {
+            statsMap[m.team1].points += 3;
+            statsMap[m.team1].wins += 1;
+            statsMap[m.team2].losses += 1;
+          } else if (s2 > s1) {
+            statsMap[m.team2].points += 3;
+            statsMap[m.team2].wins += 1;
+            statsMap[m.team1].losses += 1;
+          } else {
+            statsMap[m.team1].points += 1;
+            statsMap[m.team2].points += 1;
+            statsMap[m.team1].draws += 1;
+            statsMap[m.team2].draws += 1;
+          }
+        }
+      });
+
+      const sortedStats = Object.values(statsMap).sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+        return a.team.localeCompare(b.team);
+      });
+
+      groupsStandings[letter] = sortedStats;
+    });
+
+    const thirdsList: { letter: string; stats: TeamStats }[] = [];
+    groupsList.forEach(letter => {
+      const standings = groupsStandings[letter];
+      if (standings && standings.length >= 3) {
+        thirdsList.push({ letter, stats: standings[2] });
+      }
+    });
+
+    thirdsList.sort((a, b) => {
+      if (b.stats.points !== a.stats.points) return b.stats.points - a.stats.points;
+      if (b.stats.goalDifference !== a.stats.goalDifference) return b.stats.goalDifference - a.stats.goalDifference;
+      if (b.stats.goalsFor !== a.stats.goalsFor) return b.stats.goalsFor - a.stats.goalsFor;
+      return a.stats.team.localeCompare(b.stats.team);
+    });
+
+    const bestThirdsQualified = thirdsList.slice(0, 8);
+
+    const resolveTeamFromGroup = (rawName: string): string => {
+      if (!rawName || !rawName.includes("A Definir")) return rawName;
+
+      const firstMatch = rawName.match(/1º\s+Grupo\s+([A-L])/i);
+      if (firstMatch) {
+        const letter = firstMatch[1].toUpperCase();
+        const groupFirst = groupsStandings[letter]?.[0];
+        if (groupFirst && groupFirst.played > 0) {
+          return groupFirst.team;
+        }
+        return rawName;
+      }
+
+      const secondMatch = rawName.match(/2º\s+Grupo\s+([A-L])/i);
+      if (secondMatch) {
+        const letter = secondMatch[1].toUpperCase();
+        const groupSecond = groupsStandings[letter]?.[1];
+        if (groupSecond && groupSecond.played > 0) {
+          return groupSecond.team;
+        }
+        return rawName;
+      }
+
+      const thirdMatch = rawName.match(/3º\s+Grupo\s+([A-L\/]+)/i);
+      if (thirdMatch) {
+        const lettersStr = thirdMatch[1];
+        const allowedLetters = lettersStr.split("/").map(l => l.toUpperCase().trim());
+        
+        const candidates = bestThirdsQualified.filter(cand => allowedLetters.includes(cand.letter) && cand.stats.played > 0);
+        if (candidates.length > 0) {
+          return candidates[0].stats.team;
+        }
+
+        const anyCand = thirdsList.filter(cand => allowedLetters.includes(cand.letter) && cand.stats.played > 0);
+        if (anyCand.length > 0) {
+          return anyCand[0].stats.team;
+        }
+      }
+
+      return rawName;
+    };
+
+    const matchesCopy = competitionData.matches.map(m => ({ ...m }));
+
+    matchesCopy.forEach(m => {
+      const mStage = String(m.stage || "").toLowerCase();
+      if (mStage === "16 de final" || mStage.includes("32") || mStage.includes("16 avos") || mStage.includes("dezesseis")) {
+        m.team1 = resolveTeamFromGroup(m.team1);
+        m.team2 = resolveTeamFromGroup(m.team2);
+      }
+    });
+
+    const getWinnerOrPerdedor = (matchId: string, wantWinner: boolean): string => {
+      const m = matchesCopy.find(x => x.id === matchId);
+      if (!m) return "";
+      if (m.team1.includes("A Definir") || m.team2.includes("A Definir")) return "";
+
+      const pred = predictions[matchId];
+      if (pred && pred.score1 !== "" && pred.score2 !== "") {
+        const s1 = parseInt(pred.score1, 10);
+        const s2 = parseInt(pred.score2, 10);
+        if (s1 > s2) {
+          return wantWinner ? m.team1 : m.team2;
+        } else if (s2 > s1) {
+          return wantWinner ? m.team2 : m.team1;
+        } else {
+          return wantWinner ? m.team1 : m.team2;
+        }
+      }
+      return "";
+    };
+
+    const oitavasMapping: Record<string, [string, string]> = {
+      "wc2026-o1": ["wc2026-r32-1", "wc2026-r32-2"],
+      "wc2026-o2": ["wc2026-r32-3", "wc2026-r32-4"],
+      "wc2026-o3": ["wc2026-r32-5", "wc2026-r32-6"],
+      "wc2026-o4": ["wc2026-r32-7", "wc2026-r32-8"],
+      "wc2026-o5": ["wc2026-r32-9", "wc2026-r32-10"],
+      "wc2026-o6": ["wc2026-r32-11", "wc2026-r32-12"],
+      "wc2026-o7": ["wc2026-r32-13", "wc2026-r32-14"],
+      "wc2026-o8": ["wc2026-r32-15", "wc2026-r32-16"]
+    };
+
+    matchesCopy.forEach(m => {
+      const deps = oitavasMapping[m.id];
+      if (deps) {
+        const t1 = getWinnerOrPerdedor(deps[0], true);
+        const t2 = getWinnerOrPerdedor(deps[1], true);
+        if (t1) m.team1 = t1;
+        if (t2) m.team2 = t2;
+      }
+    });
+
+    const quartasMapping: Record<string, [string, string]> = {
+      "wc2026-q1": ["wc2026-o1", "wc2026-o2"],
+      "wc2026-q2": ["wc2026-o3", "wc2026-o4"],
+      "wc2026-q3": ["wc2026-o5", "wc2026-o6"],
+      "wc2026-q4": ["wc2026-o7", "wc2026-o8"]
+    };
+
+    matchesCopy.forEach(m => {
+      const deps = quartasMapping[m.id];
+      if (deps) {
+        const t1 = getWinnerOrPerdedor(deps[0], true);
+        const t2 = getWinnerOrPerdedor(deps[1], true);
+        if (t1) m.team1 = t1;
+        if (t2) m.team2 = t2;
+      }
+    });
+
+    const semisMapping: Record<string, [string, string]> = {
+      "wc2026-s1": ["wc2026-q1", "wc2026-q2"],
+      "wc2026-s2": ["wc2026-q3", "wc2026-q4"]
+    };
+
+    matchesCopy.forEach(m => {
+      const deps = semisMapping[m.id];
+      if (deps) {
+        const t1 = getWinnerOrPerdedor(deps[0], true);
+        const t2 = getWinnerOrPerdedor(deps[1], true);
+        if (t1) m.team1 = t1;
+        if (t2) m.team2 = t2;
+      }
+    });
+
+    matchesCopy.forEach(m => {
+      if (m.id === "wc2026-t3") {
+        const t1 = getWinnerOrPerdedor("wc2026-s1", false);
+        const t2 = getWinnerOrPerdedor("wc2026-s2", false);
+        if (t1) m.team1 = t1;
+        if (t2) m.team2 = t2;
+      }
+      if (m.id === "wc2026-f1") {
+        const t1 = getWinnerOrPerdedor("wc2026-s1", true);
+        const t2 = getWinnerOrPerdedor("wc2026-s2", true);
+        if (t1) m.team1 = t1;
+        if (t2) m.team2 = t2;
+      }
+    });
+
+    return matchesCopy;
+  }, [competitionData.matches, predictions]);
+
+  const enrichedMatches = resolvedMatches;
 
   // Find all unique stages present in the matches, in a friendly order
   const allAvailableStages: string[] = Array.from(
@@ -621,26 +1049,28 @@ export default function App() {
   }, [simulatedDate, selectedStageTab]);
 
   const isGroupPredictionLocked = (groupName: string): boolean => {
-    return isGlobalPredictionLocked();
+    return isGlobalPredictionLocked() || !isGroupStageClassificationVisible();
+  };
+
+  const isGroupStageClassificationVisible = (): boolean => {
+    const limitDate = new Date("2026-06-11T16:00:00-03:00");
+    const realNow = new Date();
+    return simulatedDate < limitDate && realNow < limitDate;
+  };
+
+  const isFinalistsPrognosticsVisibleAndActive = (): boolean => {
+    const startDate = new Date("2026-06-27T23:00:00-03:00");
+    const endDate = new Date("2026-07-02T21:00:00-03:00");
+    const realNow = new Date();
+    
+    const activeBySimulated = simulatedDate >= startDate && simulatedDate <= endDate;
+    const activeByReal = realNow >= startDate && realNow <= endDate;
+    
+    return activeBySimulated || activeByReal;
   };
 
   const isFinalistsPredictionLocked = (): boolean => {
-    const r32Matches = competitionData.matches.filter(m => {
-      const stage = String(m.stage || "").toLowerCase();
-      return stage === "16 de final" || stage === "round of 32";
-    });
-    if (r32Matches.length === 0) return false;
-    
-    const sorted = [...r32Matches].sort((a, b) => {
-      const timeA = new Date(`${a.date}T${a.time}:00-03:00`).getTime();
-      const timeB = new Date(`${b.date}T${b.time}:00-03:00`).getTime();
-      return timeA - timeB;
-    });
-    
-    const earliestR32 = sorted[0];
-    const matchTimeBRT = new Date(`${earliestR32.date}T${earliestR32.time}:00-03:00`);
-    const realNow = new Date();
-    return realNow >= matchTimeBRT || simulatedDate >= matchTimeBRT;
+    return !isFinalistsPrognosticsVisibleAndActive();
   };
 
   const getGroupTeams = (fullGroupName: string): string[] => {
@@ -656,27 +1086,27 @@ export default function App() {
 
   const getEliminatoriaTeams = (): string[] => {
     const teamsSet = new Set<string>();
-    competitionData.matches.forEach(m => {
+    enrichedMatches.forEach(m => {
       const stage = String(m.stage || "").toLowerCase();
       if (stage === "16 de final" || stage === "round of 32") {
         if (m.team1 && !m.team1.includes("A Definir")) teamsSet.add(m.team1);
         if (m.team2 && !m.team2.includes("A Definir")) teamsSet.add(m.team2);
       }
     });
-    if (teamsSet.size === 0) {
-      return [
-        "México", "Suíça", "Inglaterra", "Senegal", "França", "Marrocos", "Brasil", "Uruguai",
-        "Argentina", "Estados Unidos", "Portugal", "Suécia", "Alemanha", "Japão", "Holanda", "Noruega",
-        "Espanha", "Egito", "Áustria", "Croácia", "Bélgica", "Paraguai", "Escócia", "Austrália",
-        "Canadá", "Equador", "Colômbia", "Turquia", "Tunísia", "Coreia do Sul", "Gana", "África do Sul"
-      ];
+
+    // Se houver poucas equipes classificadas no mata-mata (por exemplo, antes ou durante a fase de grupos),
+    // permitimos que o usuário palpite os finalistas escolhendo entre todas as 48 seleções da Copa do Mundo.
+    if (teamsSet.size < 16) {
+      return Object.keys(teamFlags).sort((a, b) => a.localeCompare(b));
     }
-    return Array.from(teamsSet).sort();
+
+    return Array.from(teamsSet).sort((a, b) => a.localeCompare(b));
   };
 
   // Automatically manage timeline simulation predictions
   const handleSimulateTimeline = (targetDate: Date) => {
     setSimulatedDate(targetDate);
+    setCurrentPhaseIndex(getDuePhaseIndex(targetDate, competitionData.matches));
     try {
       localStorage.setItem("loto_simulated_date_brt", targetDate.toISOString());
     } catch (e) {
@@ -729,16 +1159,51 @@ export default function App() {
     setPredictions(newPredictions);
   };
 
-  // Filter matches of the active stage (only R1 matches for 'Fase de Grupos' tab)
-  const activeMatches = enrichedMatches.filter(m => {
-    const stage = m.stage || "Fase de Grupos";
-    if (stage !== selectedStageTab) return false;
-    // For Fase de Grupos, separate 1ª Rodada from 2ª Rodada
-    if (selectedStageTab === "Fase de Grupos") {
-      const isSecondRound = m.id.includes("-2r");
-      return !isSecondRound;
+  const handleApplyCustomTime = (dateTimeString: string) => {
+    if (!dateTimeString) return;
+    const parsedDate = new Date(`${dateTimeString}:00-03:00`);
+    if (!isNaN(parsedDate.getTime())) {
+      handleSimulateTimeline(parsedDate);
     }
-    return true;
+  };
+
+  // Filter matches of the active stage based sequentially on currentPhaseIndex
+  const activeMatches = enrichedMatches.filter(m => {
+    const mStage = m.stage || "Fase de Grupos";
+    
+    if (currentPhaseIndex === 0) {
+      // 1ª Rodada (Fase de Grupos)
+      return mStage === "Fase de Grupos" && !m.id.includes("-2r") && !m.id.includes("-3r");
+    }
+    if (currentPhaseIndex === 1) {
+      // 2ª Rodada (Fase de Grupos)
+      return mStage === "Fase de Grupos" && m.id.includes("-2r");
+    }
+    if (currentPhaseIndex === 2) {
+      // 3ª Rodada (Fase de Grupos)
+      return mStage === "Fase de Grupos" && m.id.includes("-3r");
+    }
+    if (currentPhaseIndex === 3) {
+      // Dezesseis-avos de Final
+      return mStage === "16 de Final" || mStage.toLowerCase().includes("16") || mStage.includes("32") || mStage.toLowerCase().includes("dezesseis");
+    }
+    if (currentPhaseIndex === 4) {
+      // Oitavas de Final
+      return mStage === "Oitavas de Final" || mStage.toLowerCase().includes("oitav") || mStage.includes("1/8") || mStage.toLowerCase().includes("r16");
+    }
+    if (currentPhaseIndex === 5) {
+      // Quartas de Final
+      return mStage === "Quartas de Final" || mStage.toLowerCase().includes("quartas") || mStage.includes("1/4") || mStage.toLowerCase().includes("quarter");
+    }
+    if (currentPhaseIndex === 6) {
+      // Semifinais
+      return mStage === "Semifinais" || mStage.toLowerCase().includes("semi");
+    }
+    if (currentPhaseIndex === 7) {
+      // Disputa do 3º Lugar e Final
+      return mStage === "Disputa de 3º Lugar" || mStage === "Final" || ["final", "3o lugar", "disputa de 3º lugar", "terceiro"].includes(mStage.toLowerCase());
+    }
+    return false;
   });
 
   // Calculate if any match from R1 has started to release the second round
@@ -838,8 +1303,8 @@ export default function App() {
     const isLocked = isGlobalPredictionLocked();
     if (!hadSavedPrognosticos.current) {
       const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-      const missingGroups = !isLocked ? groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second) : [];
-      const missingFinalists = (isGroupStageFinished() && !isFinalistsPredictionLocked())
+      const missingGroups = (!isLocked && isGroupStageClassificationVisible()) ? groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second) : [];
+      const missingFinalists = isFinalistsPrognosticsVisibleAndActive()
         ? (!finalistPredictions.first || !finalistPredictions.second || !finalistPredictions.third || !finalistPredictions.fourth)
         : false;
 
@@ -847,7 +1312,7 @@ export default function App() {
         if (missingGroups.length > 0) {
           setValidationError("Como este é seu primeiro acesso, você deve preencher o 1º e 2º de todos os grupos A-L nos prognósticos obrigatórios antes de gerar o bilhete.");
         } else {
-          setValidationError("Como este é seu primeiro acesso nesta fase, você deve preencher os 4 Finalistas obrigatórios nos prognósticos antes de gerar o bilhete.");
+          setValidationError("Você deve preencher os 4 Finalistas obrigatórios nos prognósticos antes de gerar o bilhete.");
         }
         return;
       }
@@ -974,24 +1439,38 @@ export default function App() {
     try {
       const data = await loadOpenFootballDataFromURL(customJsonUrl.trim());
       
-      // Perform FIFA 2026 validation check on the loaded JSON file
-      const report = validateOpenFootballDataFor2026(data);
-      if (!report.isFullyCompliant) {
-        const warnings = report.checks
-          .filter(c => c.status === "warning")
-          .map(c => `• ${c.message}`)
-          .join("\n");
-        alert(`⚠️ Alerta de Incompatibilidade FIFA 2026:\n\n${warnings}\n\nPor favor, certifique-se de que os dados carregados estão com a estrutura correta.`);
-        setApiErrorMsg(`Incompatibilidade FIFA 2026: ${report.summary}`);
+      if (data.isCsvGoogleSheet) {
+        setCompetitionData(current => {
+          const merged = mergeGoogleSheetCSVIntoCompetitionData(current, data.csvContent!);
+          setApiSuccessMsg("Sucesso! As equipes classificadas da planilha Google Sheet (CSV) foram mescladas com os seus palpites de forma dinâmica!");
+          return merged;
+        });
+      } else if (data.isTxtCupFinals) {
+        setCompetitionData(current => {
+          const merged = mergeCupFinalsIntoCompetitionData(current, data.txtContent!);
+          setApiSuccessMsg("Sucesso! As equipes classificadas nos jogos das eliminatórias de cup_finals.txt foram mescladas com os seus palpites de forma dinâmica!");
+          return merged;
+        });
       } else {
-        setApiSuccessMsg(`Sucesso! Carregado: "${data.competition}" - "${data.round}" com ${data.matches.length} partidas. Todos os critérios FIFA 2026 estão conformes!`);
-      }
+        // Perform FIFA 2026 validation check on the loaded JSON file
+        const report = validateOpenFootballDataFor2026(data);
+        if (!report.isFullyCompliant) {
+          const warnings = report.checks
+            .filter(c => c.status === "warning")
+            .map(c => `• ${c.message}`)
+            .join("\n");
+          alert(`⚠️ Alerta de Incompatibilidade FIFA 2026:\n\n${warnings}\n\nPor favor, certifique-se de que os dados carregados estão com a estrutura correta.`);
+          setApiErrorMsg(`Incompatibilidade FIFA 2026: ${report.summary}`);
+        } else {
+          setApiSuccessMsg(`Sucesso! Carregado: "${data.competition}" - "${data.round}" com ${data.matches.length} partidas. Todos os critérios FIFA 2026 estão conformes!`);
+        }
 
-      setCompetitionData(data);
-      // Clean previous predictions to accommodate new teams
-      setPredictions({});
+        setCompetitionData(data);
+        // Clean previous predictions to accommodate new teams
+        setPredictions({});
+      }
     } catch (err: any) {
-      setApiErrorMsg(`Falha ao ler JSON: ${err.message || err}`);
+      setApiErrorMsg(`Falha ao ler dados do link: ${err.message || err}`);
     } finally {
       setIsFetchingUrl(false);
     }
@@ -1089,104 +1568,55 @@ export default function App() {
 
           {showSimulator && (
             <div className="border-t border-emerald-800/40 pt-2.5 mt-2.5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex flex-col space-y-1.5">
-                <span className="text-amber-300 font-bold text-[9px] block">⏱️ SIMULAR CRONOGRAMA DO MUNDIAL (PALPITES DE TESTE):</span>
-                
-                <div className="flex flex-wrap gap-1 items-center justify-start text-[8px]">
+              <div className="flex flex-col space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-amber-300 font-bold text-[9px] uppercase tracking-wider block">
+                    ⏱️ SIMULADOR DE DATA/HORA DA COPA 2026:
+                  </span>
+                  
+                  {/* Input DateTime-Local e Botão Aplicar */}
+                  <div className="flex items-center space-x-1 shrink-0">
+                    <input
+                      type="datetime-local"
+                      value={customBrtInput}
+                      onChange={(e) => setCustomBrtInput(e.target.value)}
+                      className="bg-neutral-800 text-emerald-200 border border-emerald-700/60 rounded px-1.5 py-0.5 text-[9px] font-mono focus:outline-none focus:ring-1 focus:ring-amber-500 h-6 shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCustomTime(customBrtInput)}
+                      className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-neutral-950 font-black px-2 py-0.5 rounded text-[8px] tracking-wider uppercase cursor-pointer h-6 transition-all"
+                      title="Aplicar data e hora customizados para teste futuro"
+                    >
+                      Aplicar 🚀
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 items-center justify-start text-[8px]">
+                  {/* Presets de data rápidos */}
                   <button
                     type="button"
                     onClick={() => {
                       const d = new Date("2026-06-11T12:00:00-03:00");
                       handleSimulateTimeline(d);
                     }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="Todo o bolão aberto para palpitar a 1ª rodada do Mundial"
+                    className="px-1.5 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Fase de Grupos (Abertura da Copa)"
                   >
-                    1. Grupos (R1 Aberta)
+                    ⚽ Abertura (11/Jun)
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
-                      const d = new Date("2026-06-11T16:30:00-03:00");
+                      const d = new Date("2026-06-28T12:00:00-03:00");
                       handleSimulateTimeline(d);
                     }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="México x África começa, disparando a liberação dos jogos da 2ª rodada!"
+                    className="px-1.5 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="Conclusão da Fase de Grupos / Início do Mata-Mata (16 de Final)"
                   >
-                    2. R1 Jogo Executando 🏁
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date("2026-06-18T12:00:00-03:00");
-                      handleSimulateTimeline(d);
-                    }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="R1 totalmente jogada e fechada. R2 de grupos aberta para palpites!"
-                  >
-                    3. Grupos (R2 Aberta)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date("2026-06-29T12:00:00-03:00");
-                      handleSimulateTimeline(d);
-                    }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="Fase de Grupos concluída. Chaveamento de Round of 32 (16 de Final) liberado!"
-                  >
-                    4. 16 de Final (R32)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date("2026-07-04T12:00:00-03:00");
-                      handleSimulateTimeline(d);
-                    }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="Round of 32 concluído. Chaveamento de Oitavas liberado!"
-                  >
-                    5. Oitavas de Final
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date("2026-07-09T12:00:00-03:00");
-                      handleSimulateTimeline(d);
-                    }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="Oitavas concluídas. Quartas preenchidas com os vencedores de Oitavas!"
-                  >
-                    6. Quartas de Final
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date("2026-07-14T12:00:00-03:00");
-                      handleSimulateTimeline(d);
-                    }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="Quartas concluídas. Semifinais preenchidas!"
-                  >
-                    7. Semifinais
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date("2026-07-18T12:00:00-03:00");
-                      handleSimulateTimeline(d);
-                    }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="Semifinais concluídas. Palpite da Decisão do Terceiro Lugar liberado!"
-                  >
-                    8. 3º Lugar 🥉
+                    ⚡ Mata-Mata (28/Jun)
                   </button>
 
                   <button
@@ -1195,10 +1625,10 @@ export default function App() {
                       const d = new Date("2026-07-19T12:00:00-03:00");
                       handleSimulateTimeline(d);
                     }}
-                    className="px-2 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
-                    title="A grande final do campeonato!"
+                    className="px-1.5 py-0.5 rounded border transition-colors cursor-pointer bg-[#143e24]/60 text-emerald-250 border-emerald-800/80 hover:bg-[#143e24] active:scale-95"
+                    title="O grande dia da Final do Mundial"
                   >
-                    9. Grande Final 🏆
+                    🏆 Grande Final (19/Jul)
                   </button>
 
                   <button
@@ -1207,9 +1637,12 @@ export default function App() {
                       try {
                         localStorage.removeItem("loto_simulated_date_brt");
                         localStorage.removeItem("loto_debug_active");
+                        localStorage.removeItem("copa_selected_phase");
                       } catch (e) {}
                       setShowSimulator(false);
-                      setSimulatedDate(new Date());
+                      const realNow = new Date();
+                      setSimulatedDate(realNow);
+                      setCurrentPhaseIndex(getDuePhaseIndex(realNow, competitionData.matches));
                     }}
                     className="px-2 py-0.5 rounded border bg-red-900/60 text-red-100 border-red-800/80 hover:bg-red-950/85 transition-colors ml-auto cursor-pointer font-bold active:scale-95"
                     title="Restaurar relógio para o tempo real"
@@ -1220,6 +1653,60 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* 🎖️ SELETOR DE FASES BRUTALISTA DE ADM */}
+          <div className="border-t border-emerald-800/40 pt-3 mt-3">
+            <span className="text-amber-300 font-bold text-[9px] block mb-2 uppercase tracking-wider">
+              ⚙️ SELETOR DE FASES DE PALPITES (ADMIN):
+            </span>
+            <div className="flex items-center justify-between gap-2 bg-[#faf6eb] p-2.5 border-2 border-neutral-900 shadow-[4px_4px_0px_#171717] rounded-md text-neutral-900">
+              {/* Botão Anterior */}
+              <button
+                type="button"
+                id="btn-prev-phase"
+                onClick={handlePrevPhase}
+                disabled={currentPhaseIndex <= 0}
+                className={`px-3 py-1.5 font-bold uppercase text-[9px] border-2 border-neutral-900 shadow-[2px_2px_0px_#171717] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#171717] ${
+                  currentPhaseIndex <= 0
+                    ? "bg-neutral-300 text-neutral-500 border-neutral-400 shadow-none cursor-not-allowed"
+                    : "bg-amber-400 hover:bg-amber-500 text-neutral-900 cursor-pointer"
+                }`}
+              >
+                ◀ Anterior
+              </button>
+
+              {/* Dropdown Seletor Central */}
+              <div className="flex-1 min-w-0">
+                <select
+                  id="phase-dropdown-select"
+                  value={currentPhaseIndex}
+                  onChange={(e) => setCurrentPhaseIndex(parseInt(e.target.value, 10))}
+                  className="w-full text-center bg-[#faf6eb] border-2 border-neutral-900 py-1 px-2 font-mono font-black text-xs text-neutral-900 uppercase tracking-tight focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer rounded-none"
+                >
+                  {PHASES.map((phase, idx) => (
+                    <option key={idx} value={idx} className="bg-neutral-100 text-neutral-900 font-mono text-xs">
+                      {phase}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Botão Próximo */}
+              <button
+                type="button"
+                id="btn-next-phase"
+                onClick={handleNextPhase}
+                disabled={currentPhaseIndex >= 7}
+                className={`px-3 py-1.5 font-bold uppercase text-[9px] border-2 border-neutral-900 shadow-[2px_2px_0px_#171717] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#171717] ${
+                  currentPhaseIndex >= 7
+                    ? "bg-neutral-300 text-neutral-500 border-neutral-400 shadow-none cursor-not-allowed"
+                    : "bg-amber-400 hover:bg-amber-500 text-neutral-900 cursor-pointer"
+                }`}
+              >
+                Próxima ▶
+              </button>
+            </div>
+          </div>
 
           {/* Clean Stage Selection Tabs */}
           <div className="mt-3 border-t border-emerald-800/40 pt-2.5">
@@ -1250,49 +1737,80 @@ export default function App() {
             </div>
           </div>
 
-          {/* Clean External JSON API Sync bar */}
-          <div className="mt-2.5 pt-2 border-t border-emerald-800/40 flex items-center justify-between gap-2">
-            <span className="text-neutral-400 font-bold text-[9px] uppercase">CARGA EXTERNA (OPENFOOTBALL JSON):</span>
-            <button
-              type="button"
-              id="sync-api-button"
-              disabled={isFetchingUrl}
-              onClick={async (e) => {
-                e.preventDefault();
-                setIsFetchingUrl(true);
-                setApiErrorMsg(null);
-                setApiSuccessMsg(null);
-                try {
-                  const data = await loadOpenFootballDataFromURL(customJsonUrl);
-                  const report = validateOpenFootballDataFor2026(data);
-                  if (!report.isFullyCompliant) {
-                    const warnings = report.checks
-                      .filter(c => c.status === "warning")
-                      .map(c => `• ${c.message}`)
-                      .join("\n");
-                    alert(`⚠️ Alerta de Incompatibilidade FIFA 2026:\n\n${warnings}\n\nPor favor, garanta que os dados importados estão corretos.`);
-                    setApiErrorMsg(`Incompatibilidade FIFA 2026: ${report.summary}`);
-                  } else {
-                    setApiSuccessMsg(`Sincronizado! "${data.competition}" configurada.`);
+          {/* Clean Google Sheet / CSV Sync bar */}
+          <div className="mt-2.5 pt-2 border-t border-emerald-800/40 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-neutral-400 font-bold text-[9px] uppercase">
+                Sincronizar Classificados:
+              </span>
+              <button
+                type="button"
+                id="sync-api-button"
+                disabled={isFetchingUrl}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setIsFetchingUrl(true);
+                  setApiErrorMsg(null);
+                  setApiSuccessMsg(null);
+                  try {
+                    const data = await loadOpenFootballDataFromURL(customJsonUrl.trim());
+                    if (data.isCsvGoogleSheet) {
+                      setCompetitionData(current => {
+                        const merged = mergeGoogleSheetCSVIntoCompetitionData(current, data.csvContent!);
+                        setApiSuccessMsg("Sincronizado! As equipes classificadas da planilha Google Sheet foram mescladas com sucesso!");
+                        return merged;
+                      });
+                    } else if (data.isTxtCupFinals) {
+                      setCompetitionData(current => {
+                        const merged = mergeCupFinalsIntoCompetitionData(current, data.txtContent!);
+                        setApiSuccessMsg("Sincronizado! As equipes classificadas de cup_finals.txt foram mescladas com sucesso!");
+                        return merged;
+                      });
+                    } else {
+                      const report = validateOpenFootballDataFor2026(data);
+                      if (!report.isFullyCompliant) {
+                        const warnings = report.checks
+                          .filter(c => c.status === "warning")
+                          .map(c => `• ${c.message}`)
+                          .join("\n");
+                        alert(`⚠️ Alerta de Incompatibilidade FIFA 2026:\n\n${warnings}\n\nPor favor, garanta que os dados importados estão corretos.`);
+                        setApiErrorMsg(`Incompatibilidade FIFA 2026: ${report.summary}`);
+                      } else {
+                        setApiSuccessMsg(`Sincronizado! "${data.competition}" configurada.`);
+                      }
+                      setCompetitionData(data);
+                      setPredictions({});
+                    }
+                  } catch (err: any) {
+                    setApiErrorMsg(`Erro de rede / CORS: '${err.message || err}'`);
+                  } finally {
+                    setIsFetchingUrl(false);
                   }
-                  setCompetitionData(data);
-                  setPredictions({});
-                } catch (err: any) {
-                  setApiErrorMsg(`Erro de rede / CORS: '${err.message || err}'`);
-                } finally {
-                  setIsFetchingUrl(false);
-                }
-              }}
-              className="px-2 py-0.5 rounded bg-emerald-800 hover:bg-emerald-700 border border-emerald-600 font-mono text-[8px] text-white cursor-pointer active:scale-95 transition-all text-right shrink-0"
-            >
-              {isFetchingUrl ? "🔄 Conectando..." : "🔄 Atualizar via GitHub"}
-            </button>
+                }}
+                className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 border border-amber-500 font-bold font-mono text-[8.5px] text-white cursor-pointer active:scale-95 transition-all text-right shrink-0 hover:text-white"
+              >
+                {isFetchingUrl ? "🔄 Sincronizando..." : "🔄 Atualizar via Planilha Google"}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[8px] text-neutral-400 font-medium">Link de Publicação da Planilha Google (CSV):</label>
+              <input
+                type="text"
+                value={customJsonUrl}
+                onChange={(e) => setCustomJsonUrl(e.target.value)}
+                placeholder="Cole o link CSV publicado do Google Sheets..."
+                className="w-full bg-[#13301c] border border-emerald-900/60 rounded px-1.5 py-0.5 text-[8.5px] font-mono text-emerald-100 placeholder-emerald-800/80 focus:outline-none focus:border-amber-500 transition-all"
+              />
+            </div>
           </div>
           
           {(apiErrorMsg || apiSuccessMsg) && (
-            <div className="mt-2 text-[8px] leading-relaxed p-1.5 rounded border">
-              {apiErrorMsg && <p className="text-red-400 bg-red-950/20 border-red-900/40">{apiErrorMsg}</p>}
-              {apiSuccessMsg && <p className="text-emerald-400 bg-emerald-950/20 border-emerald-900/40">{apiSuccessMsg}</p>}
+            <div className={`mt-2 text-[8px] leading-relaxed p-1.5 rounded border ${
+              apiErrorMsg ? "text-red-400 bg-red-950/20 border-red-900/40" : "text-emerald-400 bg-emerald-950/20 border-emerald-900/40"
+            }`}>
+              {apiErrorMsg && <p>{apiErrorMsg}</p>}
+              {apiSuccessMsg && <p>{apiSuccessMsg}</p>}
             </div>
           )}
         </div>
@@ -1394,7 +1912,7 @@ export default function App() {
               <div className="mt-4 space-y-4">
 
                 {/* 🏆 FINALISTAS DA COPA 2026 */}
-                {isGroupStageFinished() && !isFinalistsPredictionLocked() && (
+                {isFinalistsPrognosticsVisibleAndActive() && (
                   <div className="bg-[#FFFDE7] border-2 border-[#FFD700] rounded-2xl p-4 shadow-md space-y-3.5 text-neutral-900 border-dashed animate-fade-in max-w-xl mx-auto my-2">
                     <div className="flex items-center space-x-2 pb-1.5 border-b border-amber-200">
                       <span className="text-lg">🏆</span>
@@ -1492,16 +2010,16 @@ export default function App() {
 
                     <div className="pt-2 border-t border-dashed border-amber-200 text-center">
                       <span className="text-[8px] font-mono font-bold text-red-600 uppercase tracking-widest leading-none">
-                        ⚠️ Palpites bloqueados após início da Round of 32 (16 de Final)
+                        ⚠️ Palpites de Finalistas ativos de 27/06 23:00 BRT até 02/07 21:00 BRT!
                       </span>
                     </div>
                   </div>
                 )}
                 
-                {/* 1.ª RODADA (Main Active Phase Matches) */}
+                {/* Main Active Phase Matches */}
                 <div className="space-y-3">
                   <div className="sticky top-0 bg-[#faf6eb] py-1 pb-1.5 border-b-2 border-[#143e24] font-display font-extrabold text-[#143e24] flex items-center justify-between text-xs tracking-wider z-10 select-none uppercase">
-                    <span>🔥 {selectedStageTab === "Fase de Grupos" ? "1.ª RODADA" : selectedStageTab}</span>
+                    <span>🔥 {PHASES[currentPhaseIndex].toUpperCase()}</span>
                     <span className="text-[8px] bg-[#143e24] text-white px-1.5 py-0.5 rounded font-mono">FASE ATIVA</span>
                   </div>
 
