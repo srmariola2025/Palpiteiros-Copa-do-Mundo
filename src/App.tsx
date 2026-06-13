@@ -23,7 +23,8 @@ import {
   Share2,
   Trash2,
   Info,
-  X
+  X,
+  AlertTriangle
 } from "lucide-react";
 
 import { openFootballMockData, getTeamFlag, teamFlags, groupStageSecondRoundMatches, groupStageThirdRoundMatches } from "./data/mockSoccerData";
@@ -679,6 +680,8 @@ export default function App() {
   const [whatsappDestinationUrl, setWhatsappDestinationUrl] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [selectedTradingCardTeam, setSelectedTradingCardTeam] = useState<string | null>(null);
+  const [showConfirmMissingModal, setShowConfirmMissingModal] = useState(false);
+  const [missingConfirmData, setMissingConfirmData] = useState<{ filled: number; missing: number } | null>(null);
 
   // 4. Local History tracking so user enjoys client autonomy
   const [registeredKeysHistory, setRegisteredKeysHistory] = useState<string[]>([]);
@@ -1290,74 +1293,64 @@ export default function App() {
   };
 
   // Handle submission logic & validation criteria
-  const handleEnviarPalpites = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Verification 1: Mandatory fields Check
-    if (!fullName.trim()) {
-      setValidationError("Por favor, preencha o seu Nome Completo para assinar o bilhete.");
-      return;
-    }
-
-    // REGRA 1: PROGNÓSTICOS (Grupos A-L + 4 Finalistas)
-    const isLocked = isGlobalPredictionLocked();
-    if (!hadSavedPrognosticos.current) {
-      const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-      const missingGroups = (!isLocked && isGroupStageClassificationVisible()) ? groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second) : [];
-      const missingFinalists = isFinalistsPrognosticsVisibleAndActive()
-        ? (!finalistPredictions.first || !finalistPredictions.second || !finalistPredictions.third || !finalistPredictions.fourth)
-        : false;
-
-      if (missingGroups.length > 0 || missingFinalists) {
-        if (missingGroups.length > 0) {
-          setValidationError("Como este é seu primeiro acesso, você deve preencher o 1º e 2º de todos os grupos A-L nos prognósticos obrigatórios antes de gerar o bilhete.");
-        } else {
-          setValidationError("Você deve preencher os 4 Finalistas obrigatórios nos prognósticos antes de gerar o bilhete.");
-        }
-        return;
-      }
-    }
-
-    // Checking if all matches that are NOT started have predictions
-    const editableMatches = activeMatches.filter(m => !isMatchStarted(m));
-
-    const missingPreds = editableMatches.filter(
-      match => !predictions[match.id] || 
-              predictions[match.id].score1 === "" || 
-              predictions[match.id].score2 === ""
-    );
-
-    if (missingPreds.length > 0) {
-      setValidationError(`Preencha todos os resultados da fase ativa! Ainda faltam definir os placares para ${missingPreds.length} jogo(s).`);
-      return;
-    }
-
+  const executeSubmission = (onlyFilled: boolean) => {
     setValidationError(null);
 
     // Combine predictions for active round and second round (optional previews are only sent if predicted!)
-    const listPredictions: UserPrediction[] = [
-      ...activeMatches.map(m => {
-        const pred = predictions[m.id] || { score1: "", score2: "" };
-        return {
+    const listPredictions: UserPrediction[] = [];
+
+    activeMatches.forEach(m => {
+      const pred = predictions[m.id];
+      const isClosed = isMatchStarted(m);
+      if (isClosed) {
+        listPredictions.push({
           matchId: m.id,
-          score1: pred.score1 !== "" ? pred.score1 : "0",
-          score2: pred.score2 !== "" ? pred.score2 : "0"
-        };
-      }),
-      ...secondRoundMatchesToShow
-        .filter(m => {
-          const pred = predictions[m.id];
-          return pred && pred.score1 !== "" && pred.score2 !== "";
-        })
-        .map(m => {
-          const pred = predictions[m.id]!;
-          return {
+          score1: pred?.score1 || "0",
+          score2: pred?.score2 || "0"
+        });
+      } else {
+        const hasPred = pred && pred.score1 !== "" && pred.score2 !== "";
+        if (hasPred) {
+          listPredictions.push({
             matchId: m.id,
             score1: pred.score1,
             score2: pred.score2
-          };
-        })
-    ];
+          });
+        } else if (!onlyFilled) {
+          listPredictions.push({
+            matchId: m.id,
+            score1: "0",
+            score2: "0"
+          });
+        }
+      }
+    });
+
+    secondRoundMatchesToShow
+      .filter(m => {
+        const pred = predictions[m.id];
+        return pred && pred.score1 !== "" && pred.score2 !== "";
+      })
+      .forEach(m => {
+        const pred = predictions[m.id]!;
+        listPredictions.push({
+          matchId: m.id,
+          score1: pred.score1,
+          score2: pred.score2
+        });
+      });
+
+    // Determine matches that are actually going to be shown in the WhatsApp message text
+    const matchesToSend = activeMatches.filter(m => {
+      const isClosed = isMatchStarted(m);
+      if (isClosed) return true;
+      const pred = predictions[m.id];
+      const hasPred = pred && pred.score1 !== "" && pred.score2 !== "";
+      if (onlyFilled) {
+        return hasPred;
+      }
+      return true;
+    });
 
     const ticketValue = {
       fullName,
@@ -1422,6 +1415,58 @@ export default function App() {
 
     // Open directly in a new window/tab without ever modifying current window location inside the iframe
     window.open(finalWhatsAppUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleEnviarPalpites = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Verification 1: Mandatory fields Check
+    if (!fullName.trim()) {
+      setValidationError("Por favor, preencha o seu Nome Completo para assinar o bilhete.");
+      return;
+    }
+
+    // REGRA 1: PROGNÓSTICOS (Grupos A-L + 4 Finalistas)
+    const isLocked = isGlobalPredictionLocked();
+    if (!hadSavedPrognosticos.current) {
+      const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+      const missingGroups = (!isLocked && isGroupStageClassificationVisible()) ? groupsList.filter(g => !groupPredictions[g]?.first || !groupPredictions[g]?.second) : [];
+      const missingFinalists = isFinalistsPrognosticsVisibleAndActive()
+        ? (!finalistPredictions.first || !finalistPredictions.second || !finalistPredictions.third || !finalistPredictions.fourth)
+        : false;
+
+      if (missingGroups.length > 0 || missingFinalists) {
+        if (missingGroups.length > 0) {
+          setValidationError("Como este é seu primeiro acesso, você deve preencher o 1º e 2º de todos os grupos A-L nos prognósticos obrigatórios antes de gerar o bilhete.");
+        } else {
+          setValidationError("Você deve preencher os 4 Finalistas obrigatórios nos prognósticos antes de gerar o bilhete.");
+        }
+        return;
+      }
+    }
+
+    // Checking if all matches that are NOT started have predictions
+    const editableMatches = activeMatches.filter(m => !isMatchStarted(m));
+
+    const missingPreds = editableMatches.filter(
+      match => !predictions[match.id] || 
+              predictions[match.id].score1 === "" || 
+              predictions[match.id].score2 === ""
+    );
+
+    if (missingPreds.length > 0) {
+      if (missingPreds.length === editableMatches.length) {
+        setValidationError("Por favor, preencha pelo menos 1 palpite nesta rodada antes de enviar.");
+        return;
+      }
+      
+      const filledCount = editableMatches.length - missingPreds.length;
+      setMissingConfirmData({ filled: filledCount, missing: missingPreds.length });
+      setShowConfirmMissingModal(true);
+      return;
+    }
+
+    executeSubmission(false);
   };
 
   // Fetch OpenFootball JSON URL
@@ -2764,6 +2809,66 @@ export default function App() {
                     className="py-2.5 px-4 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 border-2 border-neutral-400 font-mono font-bold uppercase text-xs transition-all shadow-[2px_2px_0px_#a3a3a3] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0px_#a3a3a3] cursor-pointer"
                   >
                     Não 🧹
+                  </button>
+                </div>
+              </div>
+
+              {/* Ticket teeth footer */}
+              <div className="h-3 bg-[radial-gradient(circle,transparent_4px,#faf6eb_5px)] bg-[size:14px_24px] bg-top w-full bg-neutral-800" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CONFIRM MODAL FOR PARTIAL PREDICTIONS */}
+      <AnimatePresence>
+        {showConfirmMissingModal && missingConfirmData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-md overflow-hidden bg-[#faf6eb] border-4 border-neutral-800 text-neutral-800 lotto-slip-container font-mono shadow-2xl"
+            >
+              {/* Ticket teeth header */}
+              <div className="h-3 bg-[radial-gradient(circle,transparent_4px,#faf6eb_5px)] bg-[size:14px_24px] bg-bottom w-full bg-neutral-800" />
+              
+              <div className="p-6 flex flex-col items-center text-center">
+                <div className="mb-4 text-[#143e24] flex flex-col items-center">
+                  <div className="p-3 bg-amber-100 rounded-full border-2 border-amber-500 mb-2">
+                    <AlertTriangle className="h-8 w-8 text-amber-500" />
+                  </div>
+                  <span className="stamp text-amber-600 border-amber-600 px-3 py-1 text-sm tracking-widest bg-amber-50/50 mt-1">
+                    ALERTA
+                  </span>
+                </div>
+
+                <h3 className="text-xl font-bold uppercase tracking-wide text-neutral-900 font-display mt-2">
+                  Palpites Incompletos
+                </h3>
+
+                <p className="mt-3 text-sm leading-relaxed text-neutral-600 font-serif italic max-w-xs">
+                  Você preencheu apenas <strong className="text-neutral-900">{missingConfirmData.filled}</strong> jogo(s). Ainda faltam preencher <strong className="text-neutral-900">{missingConfirmData.missing}</strong> jogo(s) nessa rodada.
+                  <br /><br />
+                  Quer enviar apenas os jogos preenchidos?
+                </p>
+
+                <div className="mt-6 flex w-full gap-3">
+                  <button
+                    onClick={() => {
+                      executeSubmission(true);
+                      setShowConfirmMissingModal(false);
+                    }}
+                    className="flex-1 py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-mono font-bold uppercase border-2 border-neutral-800 text-sm transition-all shadow-md active:translate-y-0.5 active:shadow-sm cursor-pointer"
+                  >
+                    Sim
+                  </button>
+                  <button
+                    onClick={() => setShowConfirmMissingModal(false)}
+                    className="flex-1 py-2.5 px-4 bg-red-100 hover:bg-red-200 text-red-800 font-mono font-bold uppercase border-2 border-red-800 text-sm transition-all shadow-md active:translate-y-0.5 active:shadow-sm cursor-pointer"
+                  >
+                    Não
                   </button>
                 </div>
               </div>

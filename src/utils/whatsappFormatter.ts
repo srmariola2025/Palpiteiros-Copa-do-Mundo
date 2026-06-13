@@ -65,21 +65,7 @@ export function formatWhatsAppMessage({
   const r32StartTime = new Date("2026-06-28T14:00:00-03:00");
   const isInitialPhaseRealDate = now < r32StartTime;
 
-  if (isInitialPhaseRealDate) {
-    if (groupPredictions) {
-      const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-      const filledGroups = groupsList.filter(g => groupPredictions[g]?.first && groupPredictions[g]?.second);
-      
-      if (filledGroups.length > 0) {
-        text += `📊 PROGNÓSTICOS DE CLASSIFICAÇÃO:\n`;
-        text += `${fancyDivider}\n`;
-        filledGroups.forEach(g => {
-          text += `Grupo ${g}: 1º ${groupPredictions[g].first}, 2º ${groupPredictions[g].second}\n`;
-        });
-        text += `${fancyDivider}\n\n`;
-      }
-    }
-  } else {
+  if (!isInitialPhaseRealDate) {
     if (finalistPredictions) {
       const hasAnyFinalist = finalistPredictions.first || finalistPredictions.second || finalistPredictions.third || finalistPredictions.fourth;
       
@@ -99,38 +85,23 @@ export function formatWhatsAppMessage({
   text += `⚽ JOGOS - ${cleanRound.toUpperCase()}:\n`;
   text += `${divider}\n`;
 
-  // Filter main round matches into closed and open ones
-  const closedMatches: { match: Match; index: number }[] = [];
+  // Filter main round matches to keep only open ones that have predictions
   const openMatches: { match: Match; index: number }[] = [];
 
   matches.forEach((match, idx) => {
     const matchTimeBRT = new Date(`${match.date}T${match.time}:00-03:00`);
     const isStarted = now >= matchTimeBRT;
     
-    if (isStarted) {
-      closedMatches.push({ match, index: idx + 1 });
-    } else {
-      openMatches.push({ match, index: idx + 1 });
+    if (!isStarted) {
+      const prediction = predictions.find(p => p.matchId === match.id);
+      const hasPred = prediction && prediction.score1 !== "" && prediction.score2 !== "";
+      if (hasPred) {
+        openMatches.push({ match, index: idx + 1 });
+      }
     }
   });
 
-  // Render Closed Matches
-  closedMatches.forEach(({ match, index }) => {
-    const [year, month, day] = match.date.split("-");
-    const formattedDate = `${day}/${month}`;
-    const gameNum = String(index).padStart(2, '0');
-    const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
-    const groupNameStr = match.group ? ` [${match.group}]` : "";
-    text += `🔹${gameNum}${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} (🚫Fechado) ${getTeamFlag(match.team2)} ${match.team2}\n`;
-    text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
-  });
-
-  // Divider between closed matches and open matches if both exist
-  if (closedMatches.length > 0 && openMatches.length > 0) {
-    text += `${divider}\n`;
-  }
-
-  // Render Open/Active Matches
+  // Render Open/Active Matches with predictions
   openMatches.forEach(({ match, index }) => {
     const [year, month, day] = match.date.split("-");
     const formattedDate = `${day}/${month}`;
