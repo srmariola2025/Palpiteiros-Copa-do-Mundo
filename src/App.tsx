@@ -326,8 +326,6 @@ export default function App() {
   // --- TRIAL/TEST MODE CONTROLLER ---
   const [showSimulator, setShowSimulator] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.has("test") || params.has("debug")) return true;
       try {
         return localStorage.getItem("loto_debug_active") === "true";
       } catch (e) {
@@ -338,6 +336,9 @@ export default function App() {
   });
 
   const [debugClicks, setDebugClicks] = useState(0);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
 
   // Dynamic Simulated or Live current date in Brasília Time (UTC-3)
   const [simulatedDate, setSimulatedDate] = useState<Date>(() => {
@@ -349,8 +350,7 @@ export default function App() {
     }
     
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      let isTestActive = params.has("test") || params.has("debug");
+      let isTestActive = false;
       try {
         if (localStorage.getItem("loto_debug_active") === "true") {
           isTestActive = true;
@@ -423,20 +423,39 @@ export default function App() {
     // Exactly 10 clicks to toggle simulator as requested
     if (nextClicks >= 10) {
       setDebugClicks(0);
-      const nextShow = !showSimulator;
-      setShowSimulator(nextShow);
-      try {
-        if (nextShow) {
-          localStorage.setItem("loto_debug_active", "true");
-        } else {
+      if (showSimulator) {
+        // If it's already active, turning it off does not require password
+        setShowSimulator(false);
+        try {
           localStorage.removeItem("loto_debug_active");
           localStorage.removeItem("loto_simulated_date_brt");
+        } catch (err) {
+          console.warn("Storage inacessível:", err);
         }
+      } else {
+        // Turning ON requires password modal verification
+        setPasswordValue("");
+        setPasswordError(false);
+        setShowPasswordModal(true);
+      }
+    } else {
+      setDebugClicks(nextClicks);
+    }
+  };
+
+  const handlePasswordSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (passwordValue === "142536") {
+      setShowPasswordModal(false);
+      setShowSimulator(true);
+      setPasswordError(false);
+      try {
+        localStorage.setItem("loto_debug_active", "true");
       } catch (err) {
         console.warn("Storage inacessível:", err);
       }
     } else {
-      setDebugClicks(nextClicks);
+      setPasswordError(true);
     }
   };
 
@@ -1010,6 +1029,11 @@ export default function App() {
   });
 
   const isMatchStarted = (match: any, now: Date = simulatedDate): boolean => {
+    // 1st Round (Rodada 1) is permanently locked from now on
+    const isFirstRound = (match.stage || "Fase de Grupos") === "Fase de Grupos" && !match.id.includes("-2r") && !match.id.includes("-3r");
+    if (isFirstRound) {
+      return true;
+    }
     const matchTimeBRT = new Date(`${match.date}T${match.time}:00-03:00`);
     return now >= matchTimeBRT;
   };
@@ -1209,29 +1233,8 @@ export default function App() {
     return false;
   });
 
-  // Calculate if any match from R1 has started to release the second round
-  const hasR1Started = enrichedMatches.some(m => 
-    !m.id.includes("-2r") && 
-    (m.stage || "Fase de Grupos") === "Fase de Grupos" && 
-    isMatchStarted(m)
-  );
-
-  // Second round matches are released only if R1 has started or if user is simulating R2/later stages
-  const secondRoundMatchesToShow = selectedStageTab === "Fase de Grupos" && hasR1Started
-    ? enrichedMatches.filter(m => {
-        if (!m.id.includes("-2r")) return false;
-        const isTeamFirstRoundInitiated = (team: string): boolean => {
-          const firstRoundMatch = enrichedMatches.find(fr => 
-            !fr.id.includes("-2r") && 
-            (fr.stage || "Fase de Grupos") === "Fase de Grupos" && 
-            (fr.team1 === team || fr.team2 === team)
-          );
-          if (!firstRoundMatch) return false;
-          return isMatchStarted(firstRoundMatch);
-        };
-        return isTeamFirstRoundInitiated(m.team1) || isTeamFirstRoundInitiated(m.team2);
-      })
-    : [];
+  // Previews are now completely deactivated
+  const secondRoundMatchesToShow: Match[] = [];
 
   // Pre-fill fields or trigger random results "Surpresinha" for active matches
   const handleSurpresinha = () => {
@@ -1699,88 +1702,6 @@ export default function App() {
             </div>
           )}
 
-          {/* 🎖️ SELETOR DE FASES BRUTALISTA DE ADM */}
-          <div className="border-t border-emerald-800/40 pt-3 mt-3">
-            <span className="text-amber-300 font-bold text-[9px] block mb-2 uppercase tracking-wider">
-              ⚙️ SELETOR DE FASES DE PALPITES (ADMIN):
-            </span>
-            <div className="flex items-center justify-between gap-2 bg-[#faf6eb] p-2.5 border-2 border-neutral-900 shadow-[4px_4px_0px_#171717] rounded-md text-neutral-900">
-              {/* Botão Anterior */}
-              <button
-                type="button"
-                id="btn-prev-phase"
-                onClick={handlePrevPhase}
-                disabled={currentPhaseIndex <= 0}
-                className={`px-3 py-1.5 font-bold uppercase text-[9px] border-2 border-neutral-900 shadow-[2px_2px_0px_#171717] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#171717] ${
-                  currentPhaseIndex <= 0
-                    ? "bg-neutral-300 text-neutral-500 border-neutral-400 shadow-none cursor-not-allowed"
-                    : "bg-amber-400 hover:bg-amber-500 text-neutral-900 cursor-pointer"
-                }`}
-              >
-                ◀ Anterior
-              </button>
-
-              {/* Dropdown Seletor Central */}
-              <div className="flex-1 min-w-0">
-                <select
-                  id="phase-dropdown-select"
-                  value={currentPhaseIndex}
-                  onChange={(e) => setCurrentPhaseIndex(parseInt(e.target.value, 10))}
-                  className="w-full text-center bg-[#faf6eb] border-2 border-neutral-900 py-1 px-2 font-mono font-black text-xs text-neutral-900 uppercase tracking-tight focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer rounded-none"
-                >
-                  {PHASES.map((phase, idx) => (
-                    <option key={idx} value={idx} className="bg-neutral-100 text-neutral-900 font-mono text-xs">
-                      {phase}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Botão Próximo */}
-              <button
-                type="button"
-                id="btn-next-phase"
-                onClick={handleNextPhase}
-                disabled={currentPhaseIndex >= 7}
-                className={`px-3 py-1.5 font-bold uppercase text-[9px] border-2 border-neutral-900 shadow-[2px_2px_0px_#171717] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#171717] ${
-                  currentPhaseIndex >= 7
-                    ? "bg-neutral-300 text-neutral-500 border-neutral-400 shadow-none cursor-not-allowed"
-                    : "bg-amber-400 hover:bg-amber-500 text-neutral-900 cursor-pointer"
-                }`}
-              >
-                Próxima ▶
-              </button>
-            </div>
-          </div>
-
-          {/* Clean Stage Selection Tabs */}
-          <div className="mt-3 border-t border-emerald-800/40 pt-2.5">
-            <span className="text-neutral-400 font-bold text-[9px] block mb-1.5 uppercase tracking-wider">SELECIONE A FASE PARA PALPITAR:</span>
-            <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap text-[9.5px]">
-              {(isGroupStageFinished()
-                ? ["Fase de Grupos", "16 de Final", "Oitavas de Final", "Quartas de Final", "Semifinais", "Disputa de 3º Lugar", "Final"]
-                : ["Fase de Grupos"]
-              ).map((stg) => {
-                const label = stg === "16 de Final" ? "Round of 32" : (stg === "Oitavas de Final" ? "Oitavas" : (stg === "Quartas de Final" ? "Quartas" : (stg === "Fase de Grupos" ? "Grupos" : stg)));
-                const isActive = selectedStageTab === stg;
-                return (
-                  <button
-                    key={stg}
-                    type="button"
-                    id={`tab-${stg.replace(/\s+/g, "-").toLowerCase()}`}
-                    onClick={() => setSelectedStageTab(stg)}
-                    className={`px-2 py-1 rounded border text-center transition-all cursor-pointer font-medium ${
-                      isActive
-                        ? "bg-amber-600 text-white border-amber-300 font-bold shadow-md shadow-amber-950/40 scale-102"
-                        : "bg-[#143e24]/60 text-emerald-200 border-emerald-800/80 hover:bg-[#143e24] hover:text-white"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           {/* Clean Google Sheet / CSV Sync bar */}
           <div className="mt-2.5 pt-2 border-t border-emerald-800/40 space-y-2">
@@ -1860,6 +1781,60 @@ export default function App() {
           )}
         </div>
       )}
+
+        {/* 🎖️ SELETOR DE FASES PÚBLICO */}
+        <div className="w-full bg-[#11321d] border border-emerald-700/50 rounded-xl p-3 shadow-lg select-none mb-3">
+          <span className="text-[#ebdcb9] font-mono font-bold text-[10px] block mb-2 uppercase tracking-widest text-center">
+            ⚽ SELECIONE A RODADA OU FASE:
+          </span>
+          <div className="flex items-center justify-between gap-2 bg-[#faf6eb] p-2 border-2 border-neutral-800 rounded-md text-neutral-900">
+            {/* Botão Anterior */}
+            <button
+              type="button"
+              id="btn-prev-phase-public"
+              onClick={handlePrevPhase}
+              disabled={currentPhaseIndex <= 0}
+              className={`px-3 py-1.5 font-mono font-bold uppercase text-[9px] border-2 border-neutral-900 shadow-[2px_2px_0px_#171717] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#171717] ${
+                currentPhaseIndex <= 0
+                  ? "bg-neutral-200 text-neutral-400 border-neutral-300 shadow-none cursor-not-allowed"
+                  : "bg-amber-400 hover:bg-amber-500 text-neutral-900 cursor-pointer"
+              }`}
+            >
+              ◀ Anterior
+            </button>
+
+            {/* Dropdown Seletor Central */}
+            <div className="flex-1 min-w-0">
+              <select
+                id="phase-dropdown-select-public"
+                value={currentPhaseIndex}
+                onChange={(e) => setCurrentPhaseIndex(parseInt(e.target.value, 10))}
+                className="w-full text-center bg-[#faf6eb] border-2 border-neutral-900 py-1 px-1 font-mono font-black text-xs text-neutral-900 uppercase tracking-tight focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer rounded-none text-center"
+              >
+                {PHASES.map((phase, idx) => (
+                  <option key={idx} value={idx} className="bg-neutral-100 text-neutral-900 font-mono text-xs">
+                    {phase}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Botão Próximo */}
+            <button
+              type="button"
+              id="btn-next-phase-public"
+              onClick={handleNextPhase}
+              disabled={currentPhaseIndex >= 7}
+              className={`px-3 py-1.5 font-mono font-bold uppercase text-[9px] border-2 border-neutral-900 shadow-[2px_2px_0px_#171717] transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#171717] ${
+                currentPhaseIndex >= 7
+                  ? "bg-neutral-200 text-neutral-400 border-neutral-300 shadow-none cursor-not-allowed"
+                  : "bg-amber-400 hover:bg-amber-500 text-neutral-900 cursor-pointer"
+              }`}
+            >
+              Próxima ▶
+            </button>
+          </div>
+        </div>
 
         {/* Teeth upper row decoration */}
         <div className="serrated-edge-top" />
@@ -2874,6 +2849,81 @@ export default function App() {
               </div>
 
               {/* Ticket teeth footer */}
+              <div className="h-3 bg-[radial-gradient(circle,transparent_4px,#faf6eb_5px)] bg-[size:14px_24px] bg-top w-full bg-neutral-800" />
+            </motion.div>
+          </div>
+        )}
+
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xs">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-sm overflow-hidden bg-[#faf6eb] border-4 border-neutral-800 text-neutral-800 lotto-slip-container font-mono shadow-2xl"
+            >
+              <div className="h-3 bg-[radial-gradient(circle,transparent_4px,#faf6eb_5px)] bg-[size:14px_24px] bg-bottom w-full bg-neutral-800" />
+              
+              <div className="p-6 flex flex-col items-center">
+                <div className="mb-4 text-[#143e24] flex flex-col items-center">
+                  <div className="p-3 bg-amber-100 rounded-full border-2 border-amber-500 mb-2">
+                    <Trophy className="h-8 w-8 text-amber-500 animate-bounce" />
+                  </div>
+                  <span className="stamp text-amber-600 border-amber-600 px-3 py-1 text-xs tracking-widest bg-amber-50/50 mt-1">
+                    MODO GERENCIAL
+                  </span>
+                </div>
+
+                <h3 className="text-lg font-bold uppercase tracking-wide text-neutral-900 font-display text-center">
+                  Acesso Restrito
+                </h3>
+
+                <p className="mt-2 text-xs text-center text-neutral-500 italic mb-4">
+                  Insira a senha fixa de 6 dígitos para continuar.
+                </p>
+
+                <form onSubmit={handlePasswordSubmit} className="w-full flex flex-col items-center">
+                  <input
+                    type="password"
+                    maxLength={12}
+                    value={passwordValue}
+                    onChange={(e) => {
+                      setPasswordValue(e.target.value);
+                      setPasswordError(false);
+                    }}
+                    placeholder="Digite a Senha"
+                    className="w-full px-3 py-2 border-2 border-neutral-800 bg-[#faf6eb] text-center text-sm font-bold tracking-widest text-neutral-900 focus:outline-none focus:ring-1 focus:ring-amber-500 text-center"
+                    autoFocus
+                  />
+
+                  {passwordError && (
+                    <p className="mt-2 text-xs font-bold text-red-600 animate-pulse">
+                      ⚠️ Senha incorreta! Tente novamente.
+                    </p>
+                  )}
+
+                  <div className="mt-5 flex w-full gap-2">
+                    <button
+                      type="submit"
+                      className="flex-grow py-2 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-mono font-bold uppercase border-2 border-neutral-800 text-xs transition-shadow shadow-md active:translate-y-0.5 active:shadow-sm cursor-pointer"
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPasswordModal(false);
+                        setPasswordError(false);
+                      }}
+                      className="py-2 px-4 bg-red-100 hover:bg-red-200 text-red-800 font-mono font-bold uppercase border-2 border-red-800 text-xs transition-shadow shadow-md active:translate-y-0.5 active:shadow-sm cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              </div>
+
               <div className="h-3 bg-[radial-gradient(circle,transparent_4px,#faf6eb_5px)] bg-[size:14px_24px] bg-top w-full bg-neutral-800" />
             </motion.div>
           </div>
