@@ -566,7 +566,7 @@ export default function App() {
 
     const formattedMsg = formatWhatsAppMessage({
       fullName: slip.fullName,
-      round: `${competitionData.round} [${activeStageName.toUpperCase()}]`,
+      round: slip.phaseName || `${competitionData.round} [${activeStageName.toUpperCase()}]`,
       competition: competitionData.competition,
       matches: mainMatchesList.length > 0 ? mainMatchesList : activeMatches,
       predictions: mappedPredictions,
@@ -1385,7 +1385,8 @@ export default function App() {
         ticketCode,
         fullName,
         submittedAt: new Date().toISOString(),
-        predictions: structuredPredictions
+        predictions: structuredPredictions,
+        phaseName: PHASES[currentPhaseIndex]
       };
 
       const updatedSlips = [slipSubmission, ...recentSlips].slice(0, 3);
@@ -1398,7 +1399,7 @@ export default function App() {
     // Build the beautiful Pre-formatted WhatsApp text payload with second round support
     const formattedMsg = formatWhatsAppMessage({
       fullName,
-      round: `${competitionData.round} [${selectedStageTab.toUpperCase()}]`,
+      round: PHASES[currentPhaseIndex],
       competition: competitionData.competition,
       matches: activeMatches,
       predictions: listPredictions,

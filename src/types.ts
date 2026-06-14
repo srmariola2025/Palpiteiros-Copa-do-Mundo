@@ -36,4 +36,5 @@ export interface BetSlipSubmission {
     team1Name: string;
     team2Name: string;
   }[];
+  phaseName?: string;
 }
