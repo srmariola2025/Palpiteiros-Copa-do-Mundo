@@ -24,7 +24,10 @@ import {
   Trash2,
   Info,
   X,
-  AlertTriangle
+  AlertTriangle,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from "lucide-react";
 
 import { openFootballMockData, getTeamFlag, teamFlags, groupStageSecondRoundMatches, groupStageThirdRoundMatches } from "./data/mockSoccerData";
@@ -684,6 +687,73 @@ export default function App() {
   // 2. Integration / Settings State
   const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
   const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const [zoomPan, setZoomPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const panStartRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!isLeaderboardModalOpen) {
+      setZoomScale(1);
+      setZoomPan({ x: 0, y: 0 });
+      setIsDragging(false);
+    }
+  }, [isLeaderboardModalOpen]);
+
+  const handleZoomIn = () => {
+    setZoomScale((prev) => Math.min(prev + 0.3, 3.5));
+  };
+
+  const handleZoomOut = () => {
+    setZoomScale((prev) => {
+      const next = Math.max(prev - 0.3, 1);
+      if (next === 1) {
+        setZoomPan({ x: 0, y: 0 });
+      }
+      return next;
+    });
+  };
+
+  const handleZoomReset = () => {
+    setZoomScale(1);
+    setZoomPan({ x: 0, y: 0 });
+    setIsDragging(false);
+  };
+
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (zoomScale <= 1) return; // Only allow panning when zoomed in
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    
+    dragStartRef.current = { x: clientX, y: clientY };
+    panStartRef.current = { ...zoomPan };
+  };
+
+  const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDraggingRef.current || zoomScale <= 1) return;
+    
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    const deltaX = clientX - dragStartRef.current.x;
+    const deltaY = clientY - dragStartRef.current.y;
+
+    setZoomPan({
+      x: panStartRef.current.x + deltaX,
+      y: panStartRef.current.y + deltaY
+    });
+  };
+
+  const handleDragEnd = () => {
+    isDraggingRef.current = false;
+    setIsDragging(false);
+  };
   const [customJsonUrl, setCustomJsonUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vRFOMgTg3z8yjd9-xqPx5Ks0LrqfSMiU1Ieona4IMT8Xv_mqiFMLytSdPjNNzhkH6qwuudJe56Wj6vt/pub?output=csv");
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [apiSuccessMsg, setApiSuccessMsg] = useState<string | null>(null);
@@ -2831,26 +2901,90 @@ export default function App() {
               </div>
 
               {/* Scrollable body with the image */}
-              <div className="flex-1 overflow-auto p-2 sm:p-4 flex items-start justify-center bg-[#0d2818]/60 select-none">
-                {headerImageUrl ? (
-                  <div className="relative w-full max-w-full flex justify-center">
-                    <img
-                      src={headerImageUrl}
-                      alt="Tabela de Classificação"
-                      className="max-w-full h-auto rounded shadow-lg border border-emerald-900 select-none touch-pan-y"
-                      referrerPolicy="no-referrer"
-                      draggable={false}
-                      onContextMenu={(e) => e.preventDefault()}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
+              <div className="flex-1 flex flex-col min-h-0 bg-[#0d2818]/60 overflow-hidden">
+                
+                {/* Helpful hint bar */}
+                <div className="bg-[#05140b] text-[10px] sm:text-xs text-neutral-300 font-mono py-1.5 px-3 flex items-center justify-between border-b border-amber-500/10 shrink-0">
+                  <span className="flex items-center gap-1.5">
+                    <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 animate-pulse" />
+                    <span>Clique nos botões ou arraste para dar zoom e mover a imagem</span>
+                  </span>
+                  <span className="font-bold text-amber-500 shrink-0 bg-neutral-950/40 px-2 py-0.5 rounded text-[9.5px]">
+                    Zoom: {Math.round(zoomScale * 100)}%
+                  </span>
+                </div>
+
+                {/* Panning canvas wrapper */}
+                <div 
+                  className="flex-1 relative overflow-hidden bg-neutral-950/40 select-none flex items-center justify-center"
+                  onMouseDown={handleDragStart}
+                  onMouseMove={handleDragMove}
+                  onMouseUp={handleDragEnd}
+                  onMouseLeave={handleDragEnd}
+                  onTouchStart={handleDragStart}
+                  onTouchMove={handleDragMove}
+                  onTouchEnd={handleDragEnd}
+                  style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+                >
+                  {headerImageUrl ? (
+                    <div 
+                      className="w-full h-full flex items-center justify-center transition-all duration-75 ease-out select-none touch-none"
+                      style={{
+                        transform: `scale(${zoomScale}) translate(${zoomPan.x / zoomScale}px, ${zoomPan.y / zoomScale}px)`,
+                        transformOrigin: 'center center',
                       }}
-                    />
-                  </div>
-                ) : (
-                  <div className="py-12 text-center text-neutral-400 font-mono text-xs">
-                    Nenhuma classificação disponível no momento.
-                  </div>
-                )}
+                    >
+                      <img
+                        src={headerImageUrl}
+                        alt="Tabela de Classificação"
+                        className="max-w-[95%] max-h-[90%] md:max-h-[95%] w-auto h-auto rounded shadow-2xl border border-emerald-900 pointer-events-none select-none transition-shadow"
+                        referrerPolicy="no-referrer"
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="py-12 text-center text-neutral-400 font-mono text-xs">
+                      Nenhuma classificação disponível no momento.
+                    </div>
+                  )}
+
+                  {/* Floating Controls Overlay inside image area */}
+                  {headerImageUrl && (
+                    <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-[#0d2818]/90 border border-amber-500/35 p-1.5 rounded-lg shadow-lg backdrop-blur-xs z-10">
+                      <button
+                        type="button"
+                        onClick={handleZoomOut}
+                        disabled={zoomScale <= 1}
+                        className="p-1.5 rounded bg-neutral-900 hover:bg-neutral-800 disabled:opacity-45 text-white active:scale-90 transition-all cursor-pointer"
+                        title="Diminuir Zoom"
+                      >
+                        <ZoomOut className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleZoomReset}
+                        disabled={zoomScale === 1 && zoomPan.x === 0 && zoomPan.y === 0}
+                        className="px-2.5 py-1 rounded bg-neutral-900 hover:bg-neutral-800 text-[10px] font-mono font-bold text-amber-500 disabled:opacity-45 active:scale-90 transition-all cursor-pointer"
+                        title="Ajustar 100%"
+                      >
+                        100%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleZoomIn}
+                        disabled={zoomScale >= 3.5}
+                        className="p-1.5 rounded bg-neutral-900 hover:bg-neutral-800 disabled:opacity-45 text-white active:scale-90 transition-all cursor-pointer"
+                        title="Aumentar Zoom"
+                      >
+                        <ZoomIn className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Footer inside the modal */}
