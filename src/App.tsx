@@ -772,6 +772,19 @@ export default function App() {
 
   // --- CLASSIFICAÇÃO DINÂMICA DE GRUPOS E MATA-MATA ---
   const resolvedMatches = useMemo(() => {
+    if (!showSimulator) {
+      // Normal/User mode: strictly obey loaded data from sheet.
+      // Normalize any dynamic/placeholder name containing "A Definir" to exactly "A Definir"
+      return competitionData.matches.map(m => {
+        const isKnockout = m.stage !== "Fase de Grupos";
+        return {
+          ...m,
+          team1: isKnockout && m.team1.includes("A Definir") ? "A Definir" : m.team1,
+          team2: isKnockout && m.team2.includes("A Definir") ? "A Definir" : m.team2
+        };
+      });
+    }
+
     const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const groupsStandings: Record<string, TeamStats[]> = {};
 
@@ -1008,7 +1021,7 @@ export default function App() {
     });
 
     return matchesCopy;
-  }, [competitionData.matches, predictions]);
+  }, [competitionData.matches, predictions, showSimulator]);
 
   const enrichedMatches = resolvedMatches;
 

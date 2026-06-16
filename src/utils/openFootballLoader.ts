@@ -287,12 +287,8 @@ export function mergeCupFinalsIntoCompetitionData(
     if (matchNum && matchMap[matchNum]) {
       const parsed = matchMap[matchNum];
       const newM = { ...m };
-      if (!isPlaceholder(parsed.team1)) {
-        newM.team1 = parsed.team1;
-      }
-      if (!isPlaceholder(parsed.team2)) {
-        newM.team2 = parsed.team2;
-      }
+      newM.team1 = parsed.team1 && !isPlaceholder(parsed.team1) ? parsed.team1 : "A Definir";
+      newM.team2 = parsed.team2 && !isPlaceholder(parsed.team2) ? parsed.team2 : "A Definir";
       return newM;
     }
     return m;
@@ -381,9 +377,7 @@ export function parseGoogleSheetCSV(text: string): Record<string, { team1: strin
         team2 = remainingNonNumeric[1];
       }
 
-      if (team1 || team2) {
-        matchMap[matchNum] = { team1, team2 };
-      }
+      matchMap[matchNum] = { team1: team1.trim(), team2: team2.trim() };
     }
   }
 
@@ -406,12 +400,8 @@ export function mergeGoogleSheetCSVIntoCompetitionData(
     if (matchNum && matchMap[matchNum]) {
       const parsed = matchMap[matchNum];
       const newM = { ...m };
-      if (parsed.team1 && !isPlaceholder(parsed.team1)) {
-        newM.team1 = parsed.team1;
-      }
-      if (parsed.team2 && !isPlaceholder(parsed.team2)) {
-        newM.team2 = parsed.team2;
-      }
+      newM.team1 = parsed.team1 && !isPlaceholder(parsed.team1) ? parsed.team1 : "A Definir";
+      newM.team2 = parsed.team2 && !isPlaceholder(parsed.team2) ? parsed.team2 : "A Definir";
       return newM;
     }
     return m;
