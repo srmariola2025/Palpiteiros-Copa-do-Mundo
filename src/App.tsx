@@ -683,10 +683,25 @@ export default function App() {
 
   // 2. Integration / Settings State
   const [isDevPanelOpen, setIsDevPanelOpen] = useState(false);
+  const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false);
   const [customJsonUrl, setCustomJsonUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vRFOMgTg3z8yjd9-xqPx5Ks0LrqfSMiU1Ieona4IMT8Xv_mqiFMLytSdPjNNzhkH6qwuudJe56Wj6vt/pub?output=csv");
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [apiSuccessMsg, setApiSuccessMsg] = useState<string | null>(null);
   const [apiErrorMsg, setApiErrorMsg] = useState<string | null>(null);
+  const [headerImageUrl, setHeaderImageUrl] = useState<string>(() => {
+    try {
+      return localStorage.getItem("head_img_url") || "https://i.imgur.com/jI6EOx1.jpeg";
+    } catch (_) {
+      return "https://i.imgur.com/jI6EOx1.jpeg";
+    }
+  });
+
+  const updateHeaderImageUrl = (url: string) => {
+    setHeaderImageUrl(url);
+    try {
+      localStorage.setItem("head_img_url", url);
+    } catch (_) {}
+  };
 
   // 3. Modals and Triggers Design State
   const [clearClicks, setClearClicks] = useState(0);
@@ -1783,6 +1798,26 @@ export default function App() {
                 className="w-full bg-[#13301c] border border-emerald-900/60 rounded px-1.5 py-0.5 text-[8.5px] font-mono text-emerald-100 placeholder-emerald-800/80 focus:outline-none focus:border-amber-500 transition-all"
               />
             </div>
+
+            <div className="flex flex-col gap-1 pt-1.5">
+              <label className="text-[8px] text-neutral-400 font-medium font-mono uppercase tracking-wider">Link da Imagem do Cabeçalho (Quadro):</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={headerImageUrl}
+                  onChange={(e) => updateHeaderImageUrl(e.target.value)}
+                  placeholder="Ex: https://i.imgur.com/jI6EOx1.jpeg"
+                  className="flex-1 bg-[#13301c] border border-emerald-900/60 rounded px-1.5 py-0.5 text-[8.5px] font-mono text-emerald-100 placeholder-emerald-800/80 focus:outline-none focus:border-amber-500 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => updateHeaderImageUrl("https://i.imgur.com/jI6EOx1.jpeg")}
+                  className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 hover:text-white border border-amber-500 font-bold font-mono text-[7.5px] text-white cursor-pointer active:scale-95 transition-all text-center shrink-0"
+                >
+                  Padrão 🔄
+                </button>
+              </div>
+            </div>
           </div>
           
           {(apiErrorMsg || apiSuccessMsg) && (
@@ -1910,6 +1945,20 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {headerImageUrl && (
+              <div className="mt-3.5 mx-auto w-full px-1 flex justify-center animate-fade-in">
+                <button
+                  type="button"
+                  onClick={() => setIsLeaderboardModalOpen(true)}
+                  className="w-full min-h-[48px] px-4 py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-600 hover:to-amber-600 text-neutral-950 rounded-lg shadow-md hover:shadow-lg border-2 border-amber-400 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-all"
+                >
+                  <Trophy className="h-5 w-5 text-neutral-950 animate-bounce" />
+                  <span>Classificação dos Palpiteiros</span>
+                  <Sparkles className="h-4 w-4 text-neutral-950 animate-pulse" />
+                </button>
+              </div>
+            )}
 
             {/* Form layout */}
             <form onSubmit={handleEnviarPalpites} id="id-do-volante" className="mt-5 space-y-4">
@@ -2747,6 +2796,77 @@ export default function App() {
         primaryButtonText="Enviar no WhatsApp Manual"
         isRedirecting={isRedirecting}
       />
+
+      {/* CLASSIFICAÇÃO DOS PALPITEIROS MODAL */}
+      <AnimatePresence>
+        {isLeaderboardModalOpen && (
+          <div 
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md overflow-y-auto"
+            onClick={() => setIsLeaderboardModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.93, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.93, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="relative w-full max-w-4xl bg-[#143e24] border-2 border-amber-500 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header inside the modal */}
+              <div className="flex items-center justify-between px-4 py-3 bg-[#0d2818] border-b border-amber-500/35 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-amber-500 animate-pulse" />
+                  <h3 className="font-bold text-sm sm:text-base text-amber-400 font-display uppercase tracking-wider">
+                    Classificação dos Palpiteiros
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLeaderboardModalOpen(false)}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-350 hover:text-white cursor-pointer active:scale-90 transition-all"
+                  aria-label="Fechar"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Scrollable body with the image */}
+              <div className="flex-1 overflow-auto p-2 sm:p-4 flex items-start justify-center bg-[#0d2818]/60 select-none">
+                {headerImageUrl ? (
+                  <div className="relative w-full max-w-full flex justify-center">
+                    <img
+                      src={headerImageUrl}
+                      alt="Tabela de Classificação"
+                      className="max-w-full h-auto rounded shadow-lg border border-emerald-900 select-none touch-pan-y"
+                      referrerPolicy="no-referrer"
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-neutral-400 font-mono text-xs">
+                    Nenhuma classificação disponível no momento.
+                  </div>
+                )}
+              </div>
+
+              {/* Footer inside the modal */}
+              <div className="p-3 bg-[#0d2818] border-t border-amber-500/35 flex justify-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsLeaderboardModalOpen(false)}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold text-xs uppercase tracking-wider active:scale-95 transition-all text-center cursor-pointer shadow"
+                >
+                  Fechar Classificação
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* EASTER EGG RETRO MODAL FOR SURPRESINHA */}
       <AnimatePresence>
