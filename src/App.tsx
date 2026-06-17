@@ -2888,29 +2888,29 @@ export default function App() {
       <AnimatePresence>
         {isLeaderboardModalOpen && (
           <div 
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md overflow-y-auto"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center p-1 sm:p-4 md:p-6 bg-black/95 backdrop-blur-md overflow-hidden"
             onClick={() => setIsLeaderboardModalOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.93, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.93, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="relative w-full max-w-4xl bg-[#143e24] border-2 border-amber-500 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="relative w-full h-[95vh] sm:h-[88vh] max-w-5xl bg-[#143e24] border-2 border-amber-500 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[97vh] sm:max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header inside the modal */}
-              <div className="flex items-center justify-between px-4 py-3 bg-[#0d2818] border-b border-amber-500/35 shrink-0">
+              <div className="flex items-center justify-between px-3.5 py-3 bg-[#0d2818] border-b border-amber-500/35 shrink-0">
                 <div className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-amber-500 animate-pulse" />
-                  <h3 className="font-bold text-sm sm:text-base text-amber-400 font-display uppercase tracking-wider">
+                  <Trophy className="h-5 w-5 text-amber-500 animate-pulse shrink-0" />
+                  <h3 className="font-bold text-xs sm:text-base text-amber-400 font-display uppercase tracking-wider">
                     Classificação dos Palpiteiros
                   </h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsLeaderboardModalOpen(false)}
-                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-350 hover:text-white cursor-pointer active:scale-90 transition-all"
+                  className="p-1.5 rounded-full hover:bg-white/10 text-neutral-350 hover:text-white cursor-pointer active:scale-90 transition-all shrink-0"
                   aria-label="Fechar"
                 >
                   <X className="h-5 w-5" />
@@ -2921,7 +2921,7 @@ export default function App() {
               <div className="flex-1 flex flex-col min-h-0 bg-[#0d2818]/60 overflow-hidden">
                 
                 {/* Helpful hint bar */}
-                <div className="bg-[#05140b] text-[10px] sm:text-xs text-neutral-300 font-mono py-2 px-3 flex items-center justify-between border-b border-amber-500/10 shrink-0">
+                <div className="bg-[#05140b] text-[9px] sm:text-xs text-neutral-300 font-mono py-2 px-3 flex items-center justify-between border-b border-amber-500/10 shrink-0">
                   <span className="flex items-center gap-1.5 leading-snug">
                     <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 animate-pulse" />
                     <span>Navegue e aproxime o quadro diretamente na visualização interativa abaixo</span>
@@ -2929,7 +2929,7 @@ export default function App() {
                 </div>
 
                 {headerImageUrl ? (
-                  <div className="flex-1 w-full h-[60vh] sm:h-[70vh] bg-neutral-950 flex items-center justify-center overflow-hidden">
+                  <div className="flex-1 w-full bg-neutral-950 flex items-center justify-center overflow-hidden min-h-0">
                     <iframe
                       src={getCleanIframeUrl(headerImageUrl)}
                       title="Classificação dos Palpiteiros"
