@@ -760,11 +760,27 @@ export default function App() {
   const [apiErrorMsg, setApiErrorMsg] = useState<string | null>(null);
   const [headerImageUrl, setHeaderImageUrl] = useState<string>(() => {
     try {
-      return localStorage.getItem("head_img_url") || "https://i.imgur.com/jI6EOx1.jpeg";
+      const stored = localStorage.getItem("head_img_url");
+      if (!stored || stored === "https://i.imgur.com/jI6EOx1.jpeg" || stored.trim() === "") {
+        return "https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview";
+      }
+      return stored;
     } catch (_) {
-      return "https://i.imgur.com/jI6EOx1.jpeg";
+      return "https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview";
     }
   });
+
+  const getCleanIframeUrl = (input: string): string => {
+    if (!input) return "";
+    const trimmed = input.trim();
+    if (trimmed.toLowerCase().includes("<iframe")) {
+      const match = trimmed.match(/src=["']([^"']+)["']/i);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return trimmed;
+  };
 
   const updateHeaderImageUrl = (url: string) => {
     setHeaderImageUrl(url);
@@ -1870,19 +1886,20 @@ export default function App() {
             </div>
 
             <div className="flex flex-col gap-1 pt-1.5">
-              <label className="text-[8px] text-neutral-400 font-medium font-mono uppercase tracking-wider">Link da Imagem do Cabeçalho (Quadro):</label>
+              <label className="text-[8px] text-neutral-400 font-medium font-mono uppercase tracking-wider">Link ou Código HTML do Iframe da Classificação:</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={headerImageUrl}
                   onChange={(e) => updateHeaderImageUrl(e.target.value)}
-                  placeholder="Ex: https://i.imgur.com/jI6EOx1.jpeg"
+                  placeholder="Cole a URL ou código iframe do seu arquivo do Google Drive..."
                   className="flex-1 bg-[#13301c] border border-emerald-900/60 rounded px-1.5 py-0.5 text-[8.5px] font-mono text-emerald-100 placeholder-emerald-800/80 focus:outline-none focus:border-amber-500 transition-all"
                 />
                 <button
                   type="button"
-                  onClick={() => updateHeaderImageUrl("https://i.imgur.com/jI6EOx1.jpeg")}
+                  onClick={() => updateHeaderImageUrl("https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview")}
                   className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 hover:text-white border border-amber-500 font-bold font-mono text-[7.5px] text-white cursor-pointer active:scale-95 transition-all text-center shrink-0"
+                  title="Restaurar o link padrão do Google Drive"
                 >
                   Padrão 🔄
                 </button>
@@ -2900,91 +2917,32 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Scrollable body with the image */}
+              {/* Scrollable body with the iframe */}
               <div className="flex-1 flex flex-col min-h-0 bg-[#0d2818]/60 overflow-hidden">
                 
                 {/* Helpful hint bar */}
-                <div className="bg-[#05140b] text-[10px] sm:text-xs text-neutral-300 font-mono py-1.5 px-3 flex items-center justify-between border-b border-amber-500/10 shrink-0">
-                  <span className="flex items-center gap-1.5">
+                <div className="bg-[#05140b] text-[10px] sm:text-xs text-neutral-300 font-mono py-2 px-3 flex items-center justify-between border-b border-amber-500/10 shrink-0">
+                  <span className="flex items-center gap-1.5 leading-snug">
                     <Info className="h-3.5 w-3.5 text-amber-500 shrink-0 animate-pulse" />
-                    <span>Clique nos botões ou arraste para dar zoom e mover a imagem</span>
-                  </span>
-                  <span className="font-bold text-amber-500 shrink-0 bg-neutral-950/40 px-2 py-0.5 rounded text-[9.5px]">
-                    Zoom: {Math.round(zoomScale * 100)}%
+                    <span>Navegue e aproxime o quadro diretamente na visualização interativa abaixo</span>
                   </span>
                 </div>
 
-                {/* Panning canvas wrapper */}
-                <div 
-                  className="flex-1 relative overflow-hidden bg-neutral-950/40 select-none flex items-center justify-center"
-                  onMouseDown={handleDragStart}
-                  onMouseMove={handleDragMove}
-                  onMouseUp={handleDragEnd}
-                  onMouseLeave={handleDragEnd}
-                  onTouchStart={handleDragStart}
-                  onTouchMove={handleDragMove}
-                  onTouchEnd={handleDragEnd}
-                  style={{ cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
-                >
-                  {headerImageUrl ? (
-                    <div 
-                      className="w-full h-full flex items-center justify-center transition-all duration-75 ease-out select-none touch-none"
-                      style={{
-                        transform: `scale(${zoomScale}) translate(${zoomPan.x / zoomScale}px, ${zoomPan.y / zoomScale}px)`,
-                        transformOrigin: 'center center',
-                      }}
-                    >
-                      <img
-                        src={headerImageUrl}
-                        alt="Tabela de Classificação"
-                        className="max-w-[95%] max-h-[90%] md:max-h-[95%] w-auto h-auto rounded shadow-2xl border border-emerald-900 pointer-events-none select-none transition-shadow"
-                        referrerPolicy="no-referrer"
-                        draggable={false}
-                        onContextMenu={(e) => e.preventDefault()}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="py-12 text-center text-neutral-400 font-mono text-xs">
-                      Nenhuma classificação disponível no momento.
-                    </div>
-                  )}
-
-                  {/* Floating Controls Overlay inside image area */}
-                  {headerImageUrl && (
-                    <div className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-[#0d2818]/90 border border-amber-500/35 p-1.5 rounded-lg shadow-lg backdrop-blur-xs z-10">
-                      <button
-                        type="button"
-                        onClick={handleZoomOut}
-                        disabled={zoomScale <= 1}
-                        className="p-1.5 rounded bg-neutral-900 hover:bg-neutral-800 disabled:opacity-45 text-white active:scale-90 transition-all cursor-pointer"
-                        title="Diminuir Zoom"
-                      >
-                        <ZoomOut className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleZoomReset}
-                        disabled={zoomScale === 1 && zoomPan.x === 0 && zoomPan.y === 0}
-                        className="px-2.5 py-1 rounded bg-neutral-900 hover:bg-neutral-800 text-[10px] font-mono font-bold text-amber-500 disabled:opacity-45 active:scale-90 transition-all cursor-pointer"
-                        title="Ajustar 100%"
-                      >
-                        100%
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleZoomIn}
-                        disabled={zoomScale >= 3.5}
-                        className="p-1.5 rounded bg-neutral-900 hover:bg-neutral-800 disabled:opacity-45 text-white active:scale-90 transition-all cursor-pointer"
-                        title="Aumentar Zoom"
-                      >
-                        <ZoomIn className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {headerImageUrl ? (
+                  <div className="flex-1 w-full h-[60vh] sm:h-[70vh] bg-neutral-950 flex items-center justify-center overflow-hidden">
+                    <iframe
+                      src={getCleanIframeUrl(headerImageUrl)}
+                      title="Classificação dos Palpiteiros"
+                      className="w-full h-full border-none bg-neutral-950"
+                      allow="autoplay; encrypted-media"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : (
+                  <div className="py-16 text-center text-neutral-400 font-mono text-xs">
+                    Nenhuma classificação disponível no momento.
+                  </div>
+                )}
               </div>
 
               {/* Footer inside the modal */}
