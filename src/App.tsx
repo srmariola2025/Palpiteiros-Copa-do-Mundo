@@ -764,17 +764,7 @@ export default function App() {
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [apiSuccessMsg, setApiSuccessMsg] = useState<string | null>(null);
   const [apiErrorMsg, setApiErrorMsg] = useState<string | null>(null);
-  const [headerImageUrl, setHeaderImageUrl] = useState<string>(() => {
-    try {
-      const stored = localStorage.getItem("head_img_url");
-      if (!stored || stored === "https://i.imgur.com/jI6EOx1.jpeg" || stored.trim() === "") {
-        return "https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview";
-      }
-      return stored;
-    } catch (_) {
-      return "https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview";
-    }
-  });
+  const headerImageUrl = "https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview";
 
   const getCleanIframeUrl = (input: string): string => {
     if (!input) return "";
@@ -786,13 +776,6 @@ export default function App() {
       }
     }
     return trimmed;
-  };
-
-  const updateHeaderImageUrl = (url: string) => {
-    setHeaderImageUrl(url);
-    try {
-      localStorage.setItem("head_img_url", url);
-    } catch (_) {}
   };
 
   // 3. Modals and Triggers Design State
@@ -1911,26 +1894,7 @@ export default function App() {
               />
             </div>
 
-            <div className="flex flex-col gap-1 pt-1.5">
-              <label className="text-[8px] text-neutral-400 font-medium font-mono uppercase tracking-wider">Link ou Código HTML do Iframe da Classificação:</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={headerImageUrl}
-                  onChange={(e) => updateHeaderImageUrl(e.target.value)}
-                  placeholder="Cole a URL ou código iframe do seu arquivo do Google Drive..."
-                  className="flex-1 bg-[#13301c] border border-emerald-900/60 rounded px-1.5 py-0.5 text-[8.5px] font-mono text-emerald-100 placeholder-emerald-800/80 focus:outline-none focus:border-amber-500 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => updateHeaderImageUrl("https://drive.google.com/file/d/1iZbVpV46lKJnNwiVhmkIMJEF0wjzVSQG/preview")}
-                  className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 hover:text-white border border-amber-500 font-bold font-mono text-[7.5px] text-white cursor-pointer active:scale-95 transition-all text-center shrink-0"
-                  title="Restaurar o link padrão do Google Drive"
-                >
-                  Padrão 🔄
-                </button>
-              </div>
-            </div>
+
           </div>
           
           {(apiErrorMsg || apiSuccessMsg) && (
