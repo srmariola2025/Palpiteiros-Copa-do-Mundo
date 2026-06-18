@@ -32,7 +32,7 @@ import {
 
 import { openFootballMockData, getTeamFlag, teamFlags, groupStageSecondRoundMatches, groupStageThirdRoundMatches } from "./data/mockSoccerData";
 import { CompetitionData, UserPrediction, Match, BetSlipSubmission } from "./types";
-import { formatWhatsAppMessage, generateTicketCode } from "./utils/whatsappFormatter";
+import { formatWhatsAppMessage, generateTicketCode, sanitizeScore } from "./utils/whatsappFormatter";
 import { loadOpenFootballDataFromURL, mergeCupFinalsIntoCompetitionData, mergeGoogleSheetCSVIntoCompetitionData } from "./utils/openFootballLoader";
 import { validateOpenFootballDataFor2026 } from "./utils/fifaValidator";
 
@@ -505,9 +505,11 @@ export default function App() {
     
     const restoredPreds: Record<string, { score1: string; score2: string }> = {};
     slip.predictions.forEach(p => {
+      const s1 = sanitizeScore(p.team1Score);
+      const s2 = sanitizeScore(p.team2Score);
       restoredPreds[p.matchId] = {
-        score1: String(p.team1Score),
-        score2: String(p.team2Score)
+        score1: s1 === "0" && p.team1Score !== 0 && p.team1Score !== "0" ? "" : s1,
+        score2: s2 === "0" && p.team2Score !== 0 && p.team2Score !== "0" ? "" : s2
       };
     });
     
@@ -531,15 +533,19 @@ export default function App() {
   };
 
   const handleResendRecentSlip = (slip: BetSlipSubmission) => {
-    const mappedPredictions: UserPrediction[] = slip.predictions.map(p => ({
-      matchId: p.matchId,
-      score1: String(p.team1Score),
-      score2: String(p.team2Score)
-    }));
+    const mappedPredictions: UserPrediction[] = slip.predictions.map(p => {
+      const s1 = sanitizeScore(p.team1Score);
+      const s2 = sanitizeScore(p.team2Score);
+      return {
+        matchId: p.matchId,
+        score1: s1,
+        score2: s2
+      };
+    });
 
     const secondRoundMatchesToShow = groupStageSecondRoundMatches.filter((match) => {
       const pred = mappedPredictions.find(pr => pr.matchId === match.id);
-      return pred && pred.score1 !== "" && pred.score2 !== "";
+      return pred && pred.score1 !== "" && pred.score2 !== "" && pred.score1 !== "0" && pred.score2 !== "0";
     });
 
     const activeStageName = selectedStageTab || "Fase de Grupos";
@@ -846,8 +852,8 @@ export default function App() {
   useEffect(() => {
     const listPredictions: UserPrediction[] = Object.keys(predictions).map(id => ({
       matchId: id,
-      score1: predictions[id]?.score1 || "0",
-      score2: predictions[id]?.score2 || "0"
+      score1: sanitizeScore(predictions[id]?.score1),
+      score2: sanitizeScore(predictions[id]?.score2)
     }));
     
     if (fullName || listPredictions.length > 0) {
@@ -1395,10 +1401,20 @@ export default function App() {
     setValidationError(null);
   };
 
+  const getCleanPrediction = (matchId: string) => {
+    const rawPred = predictions[matchId];
+    const s1 = rawPred?.score1 !== undefined && rawPred.score1 !== null ? String(rawPred.score1).trim() : "";
+    const s2 = rawPred?.score2 !== undefined && rawPred.score2 !== null ? String(rawPred.score2).trim() : "";
+    const cleanS1 = s1.toLowerCase() === "undefined" || s1.toLowerCase() === "null" ? "" : s1;
+    const cleanS2 = s2.toLowerCase() === "undefined" || s2.toLowerCase() === "null" ? "" : s2;
+    return { score1: cleanS1, score2: cleanS2 };
+  };
+
   // Handle manual input of score lines
   const handleScoreChange = (matchId: string, teamNum: 1 | 2, value: string) => {
-    // Keep it empty or positive numbers
-    const cleanVal = value === "" ? "" : String(Math.max(0, parseInt(value) || 0));
+    // Keep it restricted to a single digit (0-9)
+    const cleaned = value.replace(/\D/g, "");
+    const cleanVal = cleaned.substring(0, 1);
     setPredictions(prev => ({
       ...prev,
       [matchId]: {
@@ -1422,22 +1438,27 @@ export default function App() {
       if (isClosed) {
         listPredictions.push({
           matchId: m.id,
-          score1: pred?.score1 || "0",
-          score2: pred?.score2 || "0"
+          score1: sanitizeScore(pred?.score1),
+          score2: sanitizeScore(pred?.score2)
         });
       } else {
-        const hasPred = pred && pred.score1 !== "" && pred.score2 !== "";
+        const score1 = pred?.score1 !== undefined ? String(pred.score1).trim() : "";
+        const score2 = pred?.score2 !== undefined ? String(pred.score2).trim() : "";
+        const cleanS1 = score1.toLowerCase() === "undefined" || score1.toLowerCase() === "null" ? "" : score1;
+        const cleanS2 = score2.toLowerCase() === "undefined" || score2.toLowerCase() === "null" ? "" : score2;
+        const hasPred = cleanS1 !== "" && cleanS2 !== "";
+
         if (hasPred) {
           listPredictions.push({
             matchId: m.id,
-            score1: pred.score1,
-            score2: pred.score2
+            score1: cleanS1,
+            score2: cleanS2
           });
         } else if (!onlyFilled) {
           listPredictions.push({
             matchId: m.id,
-            score1: "0",
-            score2: "0"
+            score1: cleanS1 !== "" ? cleanS1 : "0",
+            score2: cleanS2 !== "" ? cleanS2 : "0"
           });
         }
       }
@@ -1446,14 +1467,17 @@ export default function App() {
     secondRoundMatchesToShow
       .filter(m => {
         const pred = predictions[m.id];
-        return pred && pred.score1 !== "" && pred.score2 !== "";
+        if (!pred) return false;
+        const s1 = pred.score1 !== undefined ? String(pred.score1).trim() : "";
+        const s2 = pred.score2 !== undefined ? String(pred.score2).trim() : "";
+        return s1 !== "" && s2 !== "" && s1.toLowerCase() !== "undefined" && s2.toLowerCase() !== "undefined";
       })
       .forEach(m => {
         const pred = predictions[m.id]!;
         listPredictions.push({
           matchId: m.id,
-          score1: pred.score1,
-          score2: pred.score2
+          score1: sanitizeScore(pred.score1),
+          score2: sanitizeScore(pred.score2)
         });
       });
 
@@ -1462,7 +1486,10 @@ export default function App() {
       const isClosed = isMatchStarted(m);
       if (isClosed) return true;
       const pred = predictions[m.id];
-      const hasPred = pred && pred.score1 !== "" && pred.score2 !== "";
+      if (!pred) return !onlyFilled;
+      const s1 = pred.score1 !== undefined ? String(pred.score1).trim() : "";
+      const s2 = pred.score2 !== undefined ? String(pred.score2).trim() : "";
+      const hasPred = s1 !== "" && s2 !== "" && s1.toLowerCase() !== "undefined" && s2.toLowerCase() !== "undefined";
       if (onlyFilled) {
         return hasPred;
       }
@@ -1566,11 +1593,10 @@ export default function App() {
     // Checking if all matches that are NOT started have predictions
     const editableMatches = activeMatches.filter(m => !isMatchStarted(m));
 
-    const missingPreds = editableMatches.filter(
-      match => !predictions[match.id] || 
-              predictions[match.id].score1 === "" || 
-              predictions[match.id].score2 === ""
-    );
+    const missingPreds = editableMatches.filter(match => {
+      const pred = getCleanPrediction(match.id);
+      return pred.score1 === "" || pred.score2 === "";
+    });
 
     if (missingPreds.length > 0) {
       if (missingPreds.length === editableMatches.length) {
@@ -2266,7 +2292,7 @@ export default function App() {
                                     <div className="flex-1 flex flex-col justify-around gap-y-3 min-h-[480px] py-1">
                                       {col.matches.map((match) => {
                                         const idx = competitionData.matches.findIndex(m => m.id === match.id);
-                                        const prediction = predictions[match.id] || { score1: "", score2: "" };
+                                        const prediction = getCleanPrediction(match.id);
                                         const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
                                         const isStarted = isMatchStarted(match);
                                         const isActiveStage = match.stage === selectedStageTab;
@@ -2313,9 +2339,10 @@ export default function App() {
                                                   <input
                                                     type="number"
                                                     min="0"
-                                                    max="99"
+                                                    max="9"
+                                                    maxLength={1}
                                                     inputMode="numeric"
-                                                    placeholder="0"
+                                                    placeholder=""
                                                     disabled={isStarted}
                                                     value={prediction.score1}
                                                     onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
@@ -2347,9 +2374,10 @@ export default function App() {
                                                   <input
                                                     type="number"
                                                     min="0"
-                                                    max="99"
+                                                    max="9"
+                                                    maxLength={1}
                                                     inputMode="numeric"
-                                                    placeholder="0"
+                                                    placeholder=""
                                                     disabled={isStarted}
                                                     value={prediction.score2}
                                                     onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
@@ -2512,7 +2540,7 @@ export default function App() {
                             <div className="space-y-4">
                               {grpItem.matches.map((match) => {
                                 const idx = competitionData.matches.findIndex(m => m.id === match.id);
-                                const prediction = predictions[match.id] || { score1: "", score2: "" };
+                                const prediction = getCleanPrediction(match.id);
                                 const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
                                 const isStarted = isMatchStarted(match);
 
@@ -2574,9 +2602,10 @@ export default function App() {
                                           <input
                                             type="number"
                                             min="0"
-                                            max="99"
+                                            max="9"
+                                            maxLength={1}
                                             inputMode="numeric"
-                                            placeholder="0"
+                                            placeholder=""
                                             value={prediction.score1}
                                             onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
                                             className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
@@ -2585,9 +2614,10 @@ export default function App() {
                                           <input
                                             type="number"
                                             min="0"
-                                            max="99"
+                                            max="9"
+                                            maxLength={1}
                                             inputMode="numeric"
-                                            placeholder="0"
+                                            placeholder=""
                                             value={prediction.score2}
                                             onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
                                             className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
@@ -2666,7 +2696,7 @@ export default function App() {
 
                               <div className="space-y-4">
                                 {grpItem.matches.map((match, sIdx) => {
-                                  const prediction = predictions[match.id] || { score1: "", score2: "" };
+                                  const prediction = getCleanPrediction(match.id);
                                   const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
                                   const isStarted = isMatchStarted(match);
 
@@ -2728,9 +2758,10 @@ export default function App() {
                                             <input
                                               type="number"
                                               min="0"
-                                              max="99"
+                                              max="9"
+                                              maxLength={1}
                                               inputMode="numeric"
-                                              placeholder="0"
+                                              placeholder=""
                                               value={prediction.score1}
                                               onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
                                               className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
@@ -2739,9 +2770,10 @@ export default function App() {
                                             <input
                                               type="number"
                                               min="0"
-                                              max="99"
+                                              max="9"
+                                              maxLength={1}
                                               inputMode="numeric"
-                                              placeholder="0"
+                                              placeholder=""
                                               value={prediction.score2}
                                               onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
                                               className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"

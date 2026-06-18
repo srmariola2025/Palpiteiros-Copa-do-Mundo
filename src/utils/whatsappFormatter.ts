@@ -2,6 +2,16 @@ import { Match, UserPrediction } from "../types";
 import { getTeamFlag } from "../data/mockSoccerData";
 
 /**
+ * Sanitizes a score value to prevent "undefined" or nulls from appearing, resolving them to "0".
+ */
+export function sanitizeScore(val: any): string {
+  if (val === undefined || val === null) return "0";
+  const s = String(val).trim();
+  if (s === "" || s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return "0";
+  return s;
+}
+
+/**
  * Sanitizes and formats the predictions list into a rich-text format compliant with WhatsApp native markdown.
  */
 export function formatWhatsAppMessage({
@@ -94,7 +104,9 @@ export function formatWhatsAppMessage({
     
     if (!isStarted) {
       const prediction = predictions.find(p => p.matchId === match.id);
-      const hasPred = prediction && prediction.score1 !== "" && prediction.score2 !== "";
+      const score1 = prediction ? String(prediction.score1).trim() : "";
+      const score2 = prediction ? String(prediction.score2).trim() : "";
+      const hasPred = prediction && score1 !== "" && score2 !== "" && score1.toLowerCase() !== "undefined" && score2.toLowerCase() !== "undefined";
       if (hasPred) {
         openMatches.push({ match, index: idx + 1 });
       }
@@ -109,8 +121,8 @@ export function formatWhatsAppMessage({
     
     // Get predictions
     const prediction = predictions.find(p => p.matchId === match.id);
-    const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
-    const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
+    const score1 = sanitizeScore(prediction?.score1);
+    const score2 = sanitizeScore(prediction?.score2);
     const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
     const groupNameStr = match.group ? ` [${match.group}]` : "";
     
@@ -121,7 +133,9 @@ export function formatWhatsAppMessage({
   // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
   const predictedSecondRoundMatches = secondRoundMatches.filter((match) => {
     const prediction = predictions.find(p => p.matchId === match.id);
-    return prediction && prediction.score1 !== "" && prediction.score2 !== "";
+    const score1 = prediction ? String(prediction.score1).trim() : "";
+    const score2 = prediction ? String(prediction.score2).trim() : "";
+    return prediction && score1 !== "" && score2 !== "" && score1.toLowerCase() !== "undefined" && score2.toLowerCase() !== "undefined";
   });
 
   if (predictedSecondRoundMatches.length > 0) {
@@ -134,8 +148,8 @@ export function formatWhatsAppMessage({
       const formattedDate = `${day}/${month}`;
       
       const prediction = predictions.find(p => p.matchId === match.id);
-      const score1 = prediction?.score1 !== undefined && prediction.score1 !== "" ? prediction.score1 : "0";
-      const score2 = prediction?.score2 !== undefined && prediction.score2 !== "" ? prediction.score2 : "0";
+      const score1 = sanitizeScore(prediction?.score1);
+      const score2 = sanitizeScore(prediction?.score2);
       const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
       const groupNameStr = match.group ? ` [${match.group}]` : "";
       
@@ -160,8 +174,9 @@ export function generateTicketCode(fullName: string, predictions: UserPrediction
     nameLengthSum += fullName.charCodeAt(i);
   }
   let sum = 0;
+  
   predictions.forEach(p => {
-    sum += Number(p.score1 || 0) + Number(p.score2 || 0) * 3;
+    sum += Number(sanitizeScore(p.score1)) + Number(sanitizeScore(p.score2)) * 3;
   });
   
   // Custom hash combination
