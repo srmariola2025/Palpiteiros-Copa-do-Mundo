@@ -1,5 +1,6 @@
 import { Match, UserPrediction } from "../types";
 import { getTeamFlag } from "../data/mockSoccerData";
+import { getMatchOfficialNumber } from "./matchUtils";
 
 /**
  * Sanitizes a score value to prevent "undefined" or nulls from appearing, resolving them to "0".
@@ -42,8 +43,8 @@ export function formatWhatsAppMessage({
   activeStage?: string;
 }): string {
   // Line break constants
-  const divider = "------------------------------------------";
-  const fancyDivider = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+  const divider = "----------------------------";
+  const fancyDivider = "━━━━━━━━━━━━━━━━━━━━";
   const now = simulatedDateStr ? new Date(simulatedDateStr) : new Date();
   
   // Format Competition name dynamically
@@ -75,7 +76,7 @@ export function formatWhatsAppMessage({
   const r32StartTime = new Date("2026-06-28T14:00:00-03:00");
   const isInitialPhaseRealDate = now < r32StartTime;
 
-  if (!isInitialPhaseRealDate) {
+  if (isInitialPhaseRealDate) {
     if (finalistPredictions) {
       const hasAnyFinalist = finalistPredictions.first || finalistPredictions.second || finalistPredictions.third || finalistPredictions.fourth;
       
@@ -108,7 +109,7 @@ export function formatWhatsAppMessage({
       const score2 = prediction ? String(prediction.score2).trim() : "";
       const hasPred = prediction && score1 !== "" && score2 !== "" && score1.toLowerCase() !== "undefined" && score2.toLowerCase() !== "undefined";
       if (hasPred) {
-        openMatches.push({ match, index: idx + 1 });
+        openMatches.push({ match, index: getMatchOfficialNumber(match.id, idx) });
       }
     }
   });

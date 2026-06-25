@@ -35,6 +35,7 @@ import { CompetitionData, UserPrediction, Match, BetSlipSubmission } from "./typ
 import { formatWhatsAppMessage, generateTicketCode, sanitizeScore } from "./utils/whatsappFormatter";
 import { loadOpenFootballDataFromURL, mergeCupFinalsIntoCompetitionData, mergeGoogleSheetCSVIntoCompetitionData } from "./utils/openFootballLoader";
 import { validateOpenFootballDataFor2026 } from "./utils/fifaValidator";
+import { getMatchOfficialNumber } from "./utils/matchUtils";
 
 import Barcode from "./components/Barcode";
 import InfoModal from "./components/InfoModal";
@@ -249,6 +250,18 @@ export default function App() {
   });
   
   const [selectedStageTab, setSelectedStageTab] = useState<string>("Fase de Grupos");
+  const [knockoutViewMode, setKnockoutViewMode] = useState<"bracket" | "list">("bracket");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const bracketContainerRef = useRef<HTMLDivElement>(null);
 
   // --- COPA 2026 DE SEQUENTIAL PHASES STATE ---
@@ -1043,14 +1056,14 @@ export default function App() {
     };
 
     const oitavasMapping: Record<string, [string, string]> = {
-      "wc2026-o1": ["wc2026-r32-1", "wc2026-r32-2"],
-      "wc2026-o2": ["wc2026-r32-3", "wc2026-r32-4"],
-      "wc2026-o3": ["wc2026-r32-5", "wc2026-r32-6"],
-      "wc2026-o4": ["wc2026-r32-7", "wc2026-r32-8"],
-      "wc2026-o5": ["wc2026-r32-9", "wc2026-r32-10"],
-      "wc2026-o6": ["wc2026-r32-11", "wc2026-r32-12"],
-      "wc2026-o7": ["wc2026-r32-13", "wc2026-r32-14"],
-      "wc2026-o8": ["wc2026-r32-15", "wc2026-r32-16"]
+      "wc2026-o1": ["wc2026-r32-2", "wc2026-r32-5"],   // J89 = J74 vs J77
+      "wc2026-o2": ["wc2026-r32-1", "wc2026-r32-3"],   // J90 = J73 vs J75
+      "wc2026-o3": ["wc2026-r32-4", "wc2026-r32-6"],   // J91 = J76 vs J78
+      "wc2026-o4": ["wc2026-r32-7", "wc2026-r32-8"],   // J92 = J79 vs J80
+      "wc2026-o5": ["wc2026-r32-11", "wc2026-r32-12"], // J93 = J83 vs J84
+      "wc2026-o6": ["wc2026-r32-9", "wc2026-r32-10"],  // J94 = J81 vs J82
+      "wc2026-o7": ["wc2026-r32-14", "wc2026-r32-16"], // J95 = J86 vs J88
+      "wc2026-o8": ["wc2026-r32-13", "wc2026-r32-15"]  // J96 = J85 vs J87
     };
 
     matchesCopy.forEach(m => {
@@ -1064,10 +1077,10 @@ export default function App() {
     });
 
     const quartasMapping: Record<string, [string, string]> = {
-      "wc2026-q1": ["wc2026-o1", "wc2026-o2"],
-      "wc2026-q2": ["wc2026-o3", "wc2026-o4"],
-      "wc2026-q3": ["wc2026-o5", "wc2026-o6"],
-      "wc2026-q4": ["wc2026-o7", "wc2026-o8"]
+      "wc2026-q1": ["wc2026-o1", "wc2026-o2"],  // J97 = J89 vs J90
+      "wc2026-q2": ["wc2026-o5", "wc2026-o6"],  // J98 = J93 vs J94
+      "wc2026-q3": ["wc2026-o3", "wc2026-o4"],  // J99 = J91 vs J92
+      "wc2026-q4": ["wc2026-o7", "wc2026-o8"]   // J100 = J95 vs J96
     };
 
     matchesCopy.forEach(m => {
@@ -1172,11 +1185,7 @@ export default function App() {
   };
 
   // Reset selected tab to "Fase de Grupos" when group stage has not concluded
-  useEffect(() => {
-    if (!isGroupStageFinished() && selectedStageTab !== "Fase de Grupos") {
-      setSelectedStageTab("Fase de Grupos");
-    }
-  }, [simulatedDate, selectedStageTab]);
+  // Removed to allow users to view and predict the tournament bracket (Chaveamento) at any time.
 
   const isGroupPredictionLocked = (groupName: string): boolean => {
     return isGlobalPredictionLocked() || !isGroupStageClassificationVisible();
@@ -1189,14 +1198,9 @@ export default function App() {
   };
 
   const isFinalistsPrognosticsVisibleAndActive = (): boolean => {
-    const startDate = new Date("2026-06-27T23:00:00-03:00");
-    const endDate = new Date("2026-07-02T21:00:00-03:00");
+    const limitDate = new Date("2026-06-28T14:00:00-03:00");
     const realNow = new Date();
-    
-    const activeBySimulated = simulatedDate >= startDate && simulatedDate <= endDate;
-    const activeByReal = realNow >= startDate && realNow <= endDate;
-    
-    return activeBySimulated || activeByReal;
+    return simulatedDate < limitDate && realNow < limitDate;
   };
 
   const isFinalistsPredictionLocked = (): boolean => {
@@ -2170,7 +2174,7 @@ export default function App() {
 
                     <div className="pt-2 border-t border-dashed border-amber-200 text-center">
                       <span className="text-[8px] font-mono font-bold text-red-600 uppercase tracking-widest leading-none">
-                        ⚠️ Palpites de Finalistas ativos de 27/06 23:00 BRT até 02/07 21:00 BRT!
+                        ⚠️ Palpites de Finalistas ativos até o início do primeiro jogo do mata-mata (28/06 14:00 BRT)!
                       </span>
                     </div>
                   </div>
@@ -2186,6 +2190,162 @@ export default function App() {
                   <div className="space-y-4">
                     {(() => {
                       if (selectedStageTab !== "Fase de Grupos") {
+                        if (knockoutViewMode === "list") {
+                          // Render the previous simple version of the games in order (vertical list with wide capsule rows)
+                          return (
+                            <div className="w-full space-y-4">
+                              {/* Visual Mode Selector Tabs */}
+                              <div className="flex items-center justify-between bg-[#ebdcb9]/40 border border-amber-800/20 p-1 rounded-xl max-w-xs mx-auto select-none">
+                                <button
+                                  type="button"
+                                  onClick={() => setKnockoutViewMode("bracket")}
+                                  className={`flex-1 py-1.5 px-2 rounded-lg text-[9px] font-display font-extrabold tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 ${
+                                    knockoutViewMode === "bracket"
+                                      ? "bg-[#143e24] text-white shadow-xs"
+                                      : "text-[#143e24]/70 hover:text-[#143e24] hover:bg-[#ebdcb9]/20"
+                                  }`}
+                                >
+                                  📊 Chaveamento (FIFA)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setKnockoutViewMode("list")}
+                                  className={`flex-1 py-1.5 px-2 rounded-lg text-[9px] font-display font-extrabold tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 ${
+                                    knockoutViewMode === "list"
+                                      ? "bg-[#143e24] text-white shadow-xs"
+                                      : "text-[#143e24]/70 hover:text-[#143e24] hover:bg-[#ebdcb9]/20"
+                                  }`}
+                                >
+                                  📋 Lista Simples
+                                </button>
+                              </div>
+
+                              <div
+                                className="p-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50/25 space-y-3 shadow-xs relative transition-all bg-white/40 backdrop-blur-xs"
+                              >
+                                <div className="flex items-center justify-between pb-1 border-b border-dashed border-neutral-300/80">
+                                  <div className="flex items-center space-x-1.5 pb-0.5">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                    <span className="text-[11px] font-black uppercase tracking-wider font-display text-amber-950">
+                                      {selectedStageTab}
+                                    </span>
+                                  </div>
+                                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider font-mono bg-[#143e24] text-white">
+                                    Mata-Mata
+                                  </span>
+                                </div>
+
+                                <div className="space-y-4">
+                                  {activeMatches.map((match) => {
+                                    const idx = competitionData.matches.findIndex(m => m.id === match.id);
+                                    const prediction = getCleanPrediction(match.id);
+                                    const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
+                                    const isStarted = isMatchStarted(match);
+
+                                    return (
+                                      <div key={match.id} className="space-y-1">
+                                        {/* Match Header metadata */}
+                                        <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
+                                          <span className="font-bold text-[#143e24]">
+                                            JOGO #{String(getMatchOfficialNumber(match.id, idx)).padStart(2, "0")}
+                                          </span>
+                                          <span className="flex items-center space-x-1">
+                                            <span>{match.date} • {match.time} BR</span>
+                                            {match.stadium && (
+                                              <span className="text-neutral-400 hidden sm:inline">• {match.stadium}</span>
+                                            )}
+                                          </span>
+                                        </div>
+
+                                        {/* Beautiful Rounded Capsule Row */}
+                                        <div 
+                                          className={`w-full flex items-center justify-between bg-white border rounded-full p-1.5 shadow-sm transition-all relative ${
+                                            isStarted 
+                                              ? "bg-neutral-100/80 border-neutral-200 opacity-80"
+                                              : isRowFilled 
+                                                ? "border-amber-400 ring-1 ring-amber-400/40 shadow-md" 
+                                                : "border-neutral-300 hover:border-neutral-400"
+                                          }`}
+                                        >
+                                          {/* Left team: Flag + Text */}
+                                          <div 
+                                            onClick={() => setSelectedTradingCardTeam(match.team1)}
+                                            className="w-[38%] flex items-center pl-2 space-x-1.5 overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                            title={`Clique para ver a Figurinha de ${match.team1}`}
+                                          >
+                                            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                              <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                                            </div>
+                                            <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
+                                              {match.team1}
+                                            </span>
+                                          </div>
+
+                                          {/* Center Section: score pill */}
+                                          {isStarted ? (
+                                            <div className="flex flex-col items-center justify-center shrink-0 w-22 h-9 rounded-full bg-neutral-200/90 border border-neutral-300 shadow-inner select-none leading-none">
+                                              <span className="text-[7px] text-red-600 font-extrabold uppercase tracking-wider animate-pulse leading-none mb-0.5">
+                                                INICIADO
+                                              </span>
+                                              {(prediction.score1 !== "" && prediction.score2 !== "") ? (
+                                                <span className="text-[11px] font-black text-neutral-800 tracking-wider">
+                                                  {prediction.score1}-{prediction.score2}
+                                                </span>
+                                              ) : (
+                                                <span className="text-[9px] font-bold text-neutral-500 font-mono">- x -</span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center justify-center space-x-0.5 shrink-0 bg-[#f5be18] hover:bg-[#e6b112] border border-[#dda710] rounded-full px-2 py-1 text-neutral-950 shadow-sm transition-colors w-22 h-9">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="9"
+                                                maxLength={1}
+                                                inputMode="numeric"
+                                                placeholder=""
+                                                value={prediction.score1}
+                                                onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
+                                                className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                              />
+                                              <span className="text-[10px] font-black text-[#032110] select-none">-</span>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="9"
+                                                maxLength={1}
+                                                inputMode="numeric"
+                                                placeholder=""
+                                                value={prediction.score2}
+                                                onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
+                                                className="w-6 h-6 bg-white/95 rounded-full text-center font-black text-xs text-[#032110] focus:outline-none focus:ring-2 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                              />
+                                            </div>
+                                          )}
+
+                                          {/* Right team: Text + Flag */}
+                                          <div 
+                                            onClick={() => setSelectedTradingCardTeam(match.team2)}
+                                            className="w-[38%] flex items-center pr-2 space-x-1.5 justify-end text-right overflow-hidden cursor-pointer hover:text-amber-600 active:scale-95 transition-all select-none group/team"
+                                            title={`Clique para ver a Figurinha de ${match.team2}`}
+                                          >
+                                            <span className={`text-[10px] sm:text-[11px] font-black tracking-tight text-[#032110] group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
+                                              {match.team2}
+                                            </span>
+                                            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-neutral-50 border border-neutral-200 select-none shrink-0 shadow-xs group-hover/team:border-amber-500 group-hover/team:bg-amber-50 group-hover/team:scale-110 transition-transform">
+                                              <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         // Bracket Columns configurations
                         const bracketColumns = [
                           { id: "16_avos", key: "16 de final", title: "16 de Final" },
@@ -2221,19 +2381,181 @@ export default function App() {
                         };
 
                         const columnsWithMatches = bracketColumns.map(col => {
-                          const colsMatches = enrichedMatches.filter(m => matchStageFilter(m, col.key));
+                          let colsMatches = enrichedMatches.filter(m => matchStageFilter(m, col.key));
+                          
+                          // Sort matches vertically to follow official FIFA bracket paths in "Chaveamento" view
+                          if (col.id === "16_avos") {
+                            colsMatches = [...colsMatches].sort((a, b) => {
+                              const order = [
+                                "wc2026-r32-2", "wc2026-r32-5", "wc2026-r32-1", "wc2026-r32-3",
+                                "wc2026-r32-4", "wc2026-r32-6", "wc2026-r32-7", "wc2026-r32-8",
+                                "wc2026-r32-11", "wc2026-r32-12", "wc2026-r32-9", "wc2026-r32-10",
+                                "wc2026-r32-14", "wc2026-r32-16", "wc2026-r32-13", "wc2026-r32-15"
+                              ];
+                              return order.indexOf(a.id) - order.indexOf(b.id);
+                            });
+                          } else if (col.id === "oitavas") {
+                            colsMatches = [...colsMatches].sort((a, b) => {
+                              const order = [
+                                "wc2026-o1", "wc2026-o2", "wc2026-o5", "wc2026-o6",
+                                "wc2026-o3", "wc2026-o4", "wc2026-o7", "wc2026-o8"
+                              ];
+                              return order.indexOf(a.id) - order.indexOf(b.id);
+                            });
+                          } else if (col.id === "quartas") {
+                            colsMatches = [...colsMatches].sort((a, b) => {
+                              const order = [
+                                "wc2026-q1", "wc2026-q2", "wc2026-q3", "wc2026-q4"
+                              ];
+                              return order.indexOf(a.id) - order.indexOf(b.id);
+                            });
+                          } else if (col.id === "semis") {
+                            colsMatches = [...colsMatches].sort((a, b) => {
+                              const order = [
+                                "wc2026-s1", "wc2026-s2"
+                              ];
+                              return order.indexOf(a.id) - order.indexOf(b.id);
+                            });
+                          }
+
                           return { ...col, matches: colsMatches };
                         }).filter(col => col.matches.length > 0);
 
+                        const renderBracketMatchCard = (match: Match) => {
+                          const idx = competitionData.matches.findIndex(m => m.id === match.id);
+                          const prediction = getCleanPrediction(match.id);
+                          const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
+                          const isStarted = isMatchStarted(match);
+                          const isActiveStage = match.stage === selectedStageTab;
+
+                          return (
+                            <div 
+                              key={match.id} 
+                              className={`p-2 rounded-xl border bg-white shadow-xs transition-all duration-300 relative flex flex-col justify-between h-[74px] select-none ${
+                                isActiveStage 
+                                  ? isRowFilled 
+                                    ? "border-emerald-600 ring-2 ring-emerald-400/20 shadow-sm" 
+                                    : "border-neutral-300 hover:border-emerald-600"
+                                  : "border-neutral-200 bg-neutral-100/60 opacity-80"
+                              }`}
+                            >
+                              {/* Micro Header */}
+                              <div className="flex items-center justify-between text-[7px] text-neutral-400 font-mono mb-1 pb-1 border-b border-dashed border-neutral-200">
+                                <span className="font-bold text-emerald-800">🚀 JOGO #{String(getMatchOfficialNumber(match.id, idx)).padStart(2, "0")}</span>
+                                <span className="truncate max-w-[90px]">{match.date} • {match.time}</span>
+                              </div>
+
+                              {/* Teams Stacked */}
+                              <div className="flex-1 flex flex-col justify-around space-y-0.5">
+                                {/* Team 1 */}
+                                <div className="flex items-center justify-between h-5">
+                                  <div 
+                                    onClick={() => setSelectedTradingCardTeam(match.team1)}
+                                    className="flex items-center space-x-1 hover:text-amber-600 max-w-[155px] text-left cursor-pointer transition-all select-none group/team"
+                                    title={`Clique para ver a Figurinha de ${match.team1}`}
+                                  >
+                                    <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center border border-neutral-200 bg-neutral-50 shrink-0 shadow-2xs group-hover/team:scale-110 transition-transform">
+                                      <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
+                                    </div>
+                                    <span className={`text-[9px] font-black tracking-tight text-neutral-900 group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
+                                      {match.team1}
+                                    </span>
+                                  </div>
+
+                                  {isStarted ? (
+                                    <span className="text-[9px] font-mono font-bold text-neutral-600 bg-neutral-200/50 px-1 py-0.5 rounded leading-none shrink-0 min-w-[14px] text-center">
+                                      {prediction.score1 !== "" ? prediction.score1 : "-"}
+                                    </span>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="9"
+                                      maxLength={1}
+                                      inputMode="numeric"
+                                      placeholder=""
+                                      disabled={isStarted}
+                                      value={prediction.score1}
+                                      onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
+                                      className="w-5 h-4.5 bg-[#faf6eb] border border-neutral-300 rounded text-center font-black text-[9px] text-[#032110] focus:outline-none focus:ring-1 focus:ring-emerald-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Team 2 */}
+                                <div className="flex items-center justify-between h-5">
+                                  <div 
+                                    onClick={() => setSelectedTradingCardTeam(match.team2)}
+                                    className="flex items-center space-x-1 hover:text-amber-600 max-w-[155px] text-left cursor-pointer transition-all select-none group/team"
+                                    title={`Clique para ver a Figurinha de ${match.team2}`}
+                                  >
+                                    <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center border border-neutral-200 bg-neutral-50 shrink-0 shadow-2xs group-hover/team:scale-110 transition-transform">
+                                      <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                    </div>
+                                    <span className={`text-[9px] font-black tracking-tight text-neutral-900 group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
+                                      {match.team2}
+                                    </span>
+                                  </div>
+
+                                  {isStarted ? (
+                                    <span className="text-[9px] font-mono font-bold text-neutral-600 bg-neutral-200/50 px-1 py-0.5 rounded leading-none shrink-0 min-w-[14px] text-center">
+                                      {prediction.score2 !== "" ? prediction.score2 : "-"}
+                                    </span>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="9"
+                                      maxLength={1}
+                                      inputMode="numeric"
+                                      placeholder=""
+                                      disabled={isStarted}
+                                      value={prediction.score2}
+                                      onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
+                                      className="w-5 h-4.5 bg-[#faf6eb] border border-neutral-300 rounded text-center font-black text-[9px] text-[#032110] focus:outline-none focus:ring-1 focus:ring-emerald-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        };
+
                         return (
-                          <div className="w-full space-y-2">
+                          <div className="w-full space-y-4">
+                            {/* Visual Mode Selector Tabs */}
+                            <div className="flex items-center justify-between bg-[#ebdcb9]/40 border border-amber-800/20 p-1 rounded-xl max-w-xs mx-auto select-none">
+                              <button
+                                type="button"
+                                onClick={() => setKnockoutViewMode("bracket")}
+                                className={`flex-1 py-1.5 px-2 rounded-lg text-[9px] font-display font-extrabold tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 ${
+                                  knockoutViewMode === "bracket"
+                                    ? "bg-[#143e24] text-white shadow-xs"
+                                    : "text-[#143e24]/70 hover:text-[#143e24] hover:bg-[#ebdcb9]/20"
+                                }`}
+                              >
+                                📊 Chaveamento (FIFA)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setKnockoutViewMode("list")}
+                                className={`flex-1 py-1.5 px-2 rounded-lg text-[9px] font-display font-extrabold tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 ${
+                                  knockoutViewMode === "list"
+                                    ? "bg-[#143e24] text-white shadow-xs"
+                                    : "text-[#143e24]/70 hover:text-[#143e24] hover:bg-[#ebdcb9]/20"
+                                }`}
+                              >
+                                📋 Lista Simples
+                              </button>
+                            </div>
+
                             <p className="text-[10px] text-neutral-500 font-mono italic text-center select-none animate-pulse">
                               ↔️ Deslize para o lado para navegar no Chaveamento (Mata-Mata)
                             </p>
                             
                             <div 
                               ref={bracketContainerRef}
-                              className="flex gap-x-4 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scrollbar-hide scroll-smooth w-full"
+                              className="flex items-start gap-x-4 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scrollbar-hide scroll-smooth w-full"
                             >
                               {columnsWithMatches.map((col) => {
                                 const isColActive = col.matches.some(m => m.stage === selectedStageTab);
@@ -2243,126 +2565,70 @@ export default function App() {
                                     id={`col-${col.id}`}
                                     className={`min-w-[85%] sm:min-w-[325px] shrink-0 flex flex-col snap-center p-3.5 rounded-2xl border transition-all duration-300 relative ${
                                       isColActive 
-                                        ? "bg-amber-50/50 border-amber-500 ring-2 ring-amber-400/35 shadow-md shadow-amber-950/5" 
+                                        ? "bg-amber-50/55 border-amber-500 ring-2 ring-amber-400/35 shadow-md shadow-amber-950/5" 
                                         : "bg-[#fbf9f2]/75 border-neutral-300/80 opacity-85 hover:opacity-100"
                                     }`}
                                   >
                                     {/* Column Stage Title Card */}
-                                    <div className="sticky top-0 bg-[#ebdcb9] border-b-2 border-emerald-800 mb-2 py-1 px-2.5 rounded-lg text-center font-display font-extrabold text-emerald-950 text-[10px] tracking-wider select-none uppercase">
+                                    <div className="sticky top-0 bg-[#ebdcb9] border-b-2 border-emerald-800 mb-2 py-1 px-2.5 rounded-lg text-center font-display font-extrabold text-emerald-950 text-[10px] tracking-wider select-none uppercase z-10">
                                       {col.title}
                                     </div>
 
-                                    {/* Matches distributed symmetrically with flex-justify-around */}
-                                    <div className="flex-1 flex flex-col justify-around gap-y-3 min-h-[480px] py-1">
-                                      {col.matches.map((match) => {
-                                        const idx = competitionData.matches.findIndex(m => m.id === match.id);
-                                        const prediction = getCleanPrediction(match.id);
-                                        const isRowFilled = prediction.score1 !== "" && prediction.score2 !== "";
-                                        const isStarted = isMatchStarted(match);
-                                        const isActiveStage = match.stage === selectedStageTab;
+                                    {/* Bracket Layout */}
+                                    <div className="flex-1 flex flex-col gap-y-3 py-1 relative">
+                                      {(() => {
+                                        const isPairedCol = ["16_avos", "oitavas", "quartas", "semis"].includes(col.id);
+                                        if (isPairedCol) {
+                                          const pairs = [];
+                                          for (let i = 0; i < col.matches.length; i += 2) {
+                                            pairs.push({
+                                              match1: col.matches[i],
+                                              match2: col.matches[i+1]
+                                            });
+                                          }
 
-                                        return (
-                                          <div 
-                                            key={match.id} 
-                                            className={`p-2 rounded-xl border bg-white shadow-xs transition-all relative ${
-                                              isActiveStage 
-                                                ? isRowFilled 
-                                                  ? "border-amber-500 ring-2 ring-amber-400/35" 
-                                                  : "border-neutral-400 hover:border-emerald-600 shadow-sm"
-                                                : "border-neutral-200 bg-neutral-100/60 opacity-80"
-                                            }`}
-                                          >
-                                            {/* Micro Header */}
-                                            <div className="flex items-center justify-between text-[7px] text-neutral-500 font-mono mb-1 pb-1 border-b border-dashed border-neutral-200">
-                                              <span className="font-bold text-emerald-800">🚀 JOGO #{String(idx + 1).padStart(2, "0")}</span>
-                                              <span>{match.date} • {match.time}</span>
-                                            </div>
-
-                                            {/* Teams Stacked */}
-                                            <div className="space-y-1">
-                                              {/* Team 1 */}
-                                              <div className="flex items-center justify-between">
-                                                <div 
-                                                  onClick={() => setSelectedTradingCardTeam(match.team1)}
-                                                  className="flex items-center space-x-1 hover:text-amber-600 max-w-[150px] text-left cursor-pointer transition-all select-none group/team"
-                                                  title={`Clique para ver a Figurinha de ${match.team1}`}
-                                                >
-                                                  <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center border border-neutral-200 bg-neutral-50 shrink-0 shadow-2xs group-hover/team:scale-110 transition-transform">
-                                                    <TeamFlag teamName={match.team1} className="w-full h-full object-cover" />
-                                                  </div>
-                                                  <span className={`text-[9px] font-black tracking-tight text-neutral-900 group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team1}>
-                                                    {match.team1}
-                                                  </span>
+                                          return pairs.map((pair, pIdx) => {
+                                            return (
+                                              <div 
+                                                key={`pair-${col.id}-${pIdx}`} 
+                                                className="bg-neutral-100/35 border border-neutral-200/50 p-2 rounded-xl flex flex-col gap-y-2 w-full shadow-2xs"
+                                              >
+                                                {/* Header to identify Match Confrontation/Group */}
+                                                <div className="text-[7px] text-emerald-900 font-mono font-black tracking-wider border-b border-neutral-200/40 pb-1 flex justify-between items-center">
+                                                  <span>CONFRONTO #{pIdx + 1}</span>
+                                                  <span className="text-neutral-400 font-normal">MATA-MATA</span>
+                                                </div>
+                                                
+                                                {/* Match 1 */}
+                                                <div className="w-full">
+                                                  {renderBracketMatchCard(pair.match1)}
                                                 </div>
 
-                                                {isStarted ? (
-                                                  <span className="text-[9px] font-mono font-bold text-neutral-600 bg-neutral-200/50 px-1 py-0.5 rounded leading-none shrink-0 min-w-[14px] text-center">
-                                                    {prediction.score1 !== "" ? prediction.score1 : "-"}
-                                                  </span>
-                                                ) : (
-                                                  <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="9"
-                                                    maxLength={1}
-                                                    inputMode="numeric"
-                                                    placeholder=""
-                                                    disabled={isStarted}
-                                                    value={prediction.score1}
-                                                    onChange={(e) => handleScoreChange(match.id, 1, e.target.value)}
-                                                    className="w-5 h-4.5 bg-[#faf6eb] border border-neutral-300 rounded text-center font-black text-[9px] text-[#032110] focus:outline-none focus:ring-1 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
-                                                  />
-                                                )}
-                                              </div>
-
-                                              {/* Team 2 */}
-                                              <div className="flex items-center justify-between">
-                                                <div 
-                                                  onClick={() => setSelectedTradingCardTeam(match.team2)}
-                                                  className="flex items-center space-x-1 hover:text-amber-600 max-w-[150px] text-left cursor-pointer transition-all select-none group/team"
-                                                  title={`Clique para ver a Figurinha de ${match.team2}`}
-                                                >
-                                                  <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center border border-neutral-200 bg-neutral-50 shrink-0 shadow-2xs group-hover/team:scale-110 transition-transform">
-                                                    <TeamFlag teamName={match.team2} className="w-full h-full object-cover" />
+                                                {/* Match 2 */}
+                                                {pair.match2 && (
+                                                  <div className="w-full">
+                                                    {renderBracketMatchCard(pair.match2)}
                                                   </div>
-                                                  <span className={`text-[9px] font-black tracking-tight text-neutral-900 group-hover/team:text-amber-700 uppercase truncate ${isStarted ? "opacity-60 line-through" : ""}`} title={match.team2}>
-                                                    {match.team2}
-                                                  </span>
+                                                )}
+                                              </div>
+                                            );
+                                          });
+                                        } else {
+                                          // Centered single matches (Final, 3rd place)
+                                          return (
+                                            <div className="flex-1 flex flex-col gap-y-3 w-full">
+                                              {col.matches.map((match) => (
+                                                <div key={match.id} className="w-full">
+                                                  <div className="text-center font-mono text-[7px] text-amber-800 font-extrabold uppercase mb-1">
+                                                    {col.id === "final" ? "👑 Decisão do Título" : "🥉 Decisão do Bronze"}
+                                                  </div>
+                                                  {renderBracketMatchCard(match)}
                                                 </div>
-
-                                                {isStarted ? (
-                                                  <span className="text-[9px] font-mono font-bold text-neutral-600 bg-neutral-200/50 px-1 py-0.5 rounded leading-none shrink-0 min-w-[14px] text-center">
-                                                    {prediction.score2 !== "" ? prediction.score2 : "-"}
-                                                  </span>
-                                                ) : (
-                                                  <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="9"
-                                                    maxLength={1}
-                                                    inputMode="numeric"
-                                                    placeholder=""
-                                                    disabled={isStarted}
-                                                    value={prediction.score2}
-                                                    onChange={(e) => handleScoreChange(match.id, 2, e.target.value)}
-                                                    className="w-5 h-4.5 bg-[#faf6eb] border border-neutral-300 rounded text-center font-black text-[9px] text-[#032110] focus:outline-none focus:ring-1 focus:ring-[#92400e] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
-                                                  />
-                                                )}
-                                              </div>
+                                              ))}
                                             </div>
-
-                                            {/* Micro Footer */}
-                                            {match.stadium && (
-                                              <div className="text-[6px] text-neutral-400 font-mono mt-1 pt-0.5 border-t border-dashed border-neutral-100 flex items-center justify-between">
-                                                <span className="truncate max-w-[140px]">{match.stadium}</span>
-                                                {isActiveStage && (
-                                                  <span className="text-[5px] bg-red-600 text-white font-extrabold rounded px-1 scale-90 select-none uppercase">ATIVO</span>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
+                                          );
+                                        }
+                                      })()}
                                     </div>
                                   </div>
                                 );
@@ -2513,7 +2779,7 @@ export default function App() {
                                     {/* Match Header metadata */}
                                     <div className="flex items-center justify-between text-[8px] text-neutral-500 px-2 font-mono">
                                       <span className="font-bold text-[#143e24]">
-                                        JOGO #{String(idx + 1).padStart(2, "0")}
+                                        JOGO #{String(getMatchOfficialNumber(match.id, idx)).padStart(2, "0")}
                                       </span>
                                       <span className="flex items-center space-x-1">
                                         <span>{match.date} • {match.time} BR</span>
@@ -2667,9 +2933,9 @@ export default function App() {
                                   return (
                                     <div key={match.id} className="space-y-1">
                                       {/* Match Header metadata */}
-                                      <div className="flex items-center justify-between text-[8px] text-neutral-550 px-2 font-mono">
-                                        <span className="font-bold text-emerald-850">
-                                          JOGO SEGUINTE #{String(sIdx + 1).padStart(2, "0")}
+                                      <div className="flex items-center justify-between text-[8px] text-neutral-555 px-2 font-mono">
+                                        <span className="font-bold text-emerald-800">
+                                          JOGO #{String(getMatchOfficialNumber(match.id, sIdx)).padStart(2, "0")}
                                         </span>
                                         <span className="flex items-center space-x-1">
                                           <span>{match.date} • {match.time} BR</span>
