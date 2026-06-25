@@ -43,8 +43,8 @@ export function formatWhatsAppMessage({
   activeStage?: string;
 }): string {
   // Line break constants
-  const divider = "----------------------------";
-  const fancyDivider = "━━━━━━━━━━━━━━━━━━━━";
+  const divider = "--------------------";
+  const fancyDivider = "____________________";
   const now = simulatedDateStr ? new Date(simulatedDateStr) : new Date();
   
   // Format Competition name dynamically
@@ -92,10 +92,6 @@ export function formatWhatsAppMessage({
     }
   }
 
-  // Header for Matches
-  text += `⚽ JOGOS - ${cleanRound.toUpperCase()}:\n`;
-  text += `${divider}\n`;
-
   // Filter main round matches to keep only open ones that have predictions
   const openMatches: { match: Match; index: number }[] = [];
 
@@ -114,23 +110,6 @@ export function formatWhatsAppMessage({
     }
   });
 
-  // Render Open/Active Matches with predictions
-  openMatches.forEach(({ match, index }) => {
-    const [year, month, day] = match.date.split("-");
-    const formattedDate = `${day}/${month}`;
-    const gameNum = String(index).padStart(2, '0');
-    
-    // Get predictions
-    const prediction = predictions.find(p => p.matchId === match.id);
-    const score1 = sanitizeScore(prediction?.score1);
-    const score2 = sanitizeScore(prediction?.score2);
-    const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
-    const groupNameStr = match.group ? ` [${match.group}]` : "";
-    
-    text += `🔹${gameNum}${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
-    text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
-  });
-
   // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
   const predictedSecondRoundMatches = secondRoundMatches.filter((match) => {
     const prediction = predictions.find(p => p.matchId === match.id);
@@ -139,28 +118,54 @@ export function formatWhatsAppMessage({
     return prediction && score1 !== "" && score2 !== "" && score1.toLowerCase() !== "undefined" && score2.toLowerCase() !== "undefined";
   });
 
-  if (predictedSecondRoundMatches.length > 0) {
+  const hasMatches = openMatches.length > 0 || predictedSecondRoundMatches.length > 0;
+
+  if (hasMatches) {
+    // Header for Matches
+    text += `⚽ JOGOS - ${cleanRound.toUpperCase()}:\n`;
     text += `${divider}\n`;
-    text += `🔮 PRÉVIAS DA PRÓXIMA RODADA (OPCIONAIS)\n`;
-    text += `${divider}\n`;
-    
-    predictedSecondRoundMatches.forEach((match) => {
+
+    // Render Open/Active Matches with predictions
+    openMatches.forEach(({ match, index }) => {
       const [year, month, day] = match.date.split("-");
       const formattedDate = `${day}/${month}`;
+      const gameNum = String(index).padStart(2, '0');
       
+      // Get predictions
       const prediction = predictions.find(p => p.matchId === match.id);
       const score1 = sanitizeScore(prediction?.score1);
       const score2 = sanitizeScore(prediction?.score2);
       const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
       const groupNameStr = match.group ? ` [${match.group}]` : "";
       
-      text += `🔹${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
+      text += `🔹${gameNum}${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
       text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
     });
+
+    if (predictedSecondRoundMatches.length > 0) {
+      text += `${divider}\n`;
+      text += `🔮 PRÉVIAS DA PRÓXIMA RODADA (OPCIONAIS)\n`;
+      text += `${divider}\n`;
+      
+      predictedSecondRoundMatches.forEach((match) => {
+        const [year, month, day] = match.date.split("-");
+        const formattedDate = `${day}/${month}`;
+        
+        const prediction = predictions.find(p => p.matchId === match.id);
+        const score1 = sanitizeScore(prediction?.score1);
+        const score2 = sanitizeScore(prediction?.score2);
+        const stadiumStr = match.stadium ? ` (${match.stadium})` : "";
+        const groupNameStr = match.group ? ` [${match.group}]` : "";
+        
+        text += `🔹${groupNameStr} • ${match.team1} ${getTeamFlag(match.team1)} ${score1} x ${score2} ${getTeamFlag(match.team2)} ${match.team2}\n`;
+        text += `     • ${formattedDate} ${match.time}h${stadiumStr}\n`;
+      });
+    }
+
+    text += `${divider}\n\n`;
   }
 
-  text += `${divider}\n`;
-  text += `🗝️ Código de Segurança: ${displayTicketCode}\n`;
+  text += `🗝️ Código de Segurança:\n${displayTicketCode}\n`;
   text += `${divider}`;
 
   return text;

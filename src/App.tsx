@@ -1586,11 +1586,6 @@ export default function App() {
     });
 
     if (missingPreds.length > 0) {
-      if (missingPreds.length === editableMatches.length) {
-        setValidationError("Por favor, preencha pelo menos 1 palpite nesta rodada antes de enviar.");
-        return;
-      }
-      
       const filledCount = editableMatches.length - missingPreds.length;
       setMissingConfirmData({ filled: filledCount, missing: missingPreds.length });
       setShowConfirmMissingModal(true);
