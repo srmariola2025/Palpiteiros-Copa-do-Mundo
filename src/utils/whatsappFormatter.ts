@@ -110,6 +110,9 @@ export function formatWhatsAppMessage({
     }
   });
 
+  // Sort matches strictly by their official sequential game number (index)
+  openMatches.sort((a, b) => a.index - b.index);
+
   // Render 2ª RODADA / NEXT ROUND PREVIEWS if present
   const predictedSecondRoundMatches = secondRoundMatches.filter((match) => {
     const prediction = predictions.find(p => p.matchId === match.id);
